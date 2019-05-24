@@ -4,7 +4,7 @@ import random
 
 
 class VRPTW_ACO:
-    def __init__(self, graph: VPRTW_Graph, ants_num=10, max_iter=100, alpha=1, beta=3, rho=0.1):
+    def __init__(self, graph: VPRTW_Graph, ants_num=10, max_iter=100, alpha=1, beta=3, rho=0.2):
         super()
         # 结点的位置、服务时间信息
         self.graph = graph
@@ -14,6 +14,8 @@ class VRPTW_ACO:
         self.max_iter = max_iter
         self.alpha = alpha
         self.beta = beta
+        self.gamma = 1
+        self.lambda_ = 1
         # 信息素挥发速度
         self.pheromone_rho = rho
         # q0 表示直接选择概率最大的下一点的概率
@@ -21,7 +23,7 @@ class VRPTW_ACO:
         # Q 表示每辆车的最大载重
         self.max_load = graph.vehicle_capacity
         # L 表示每辆车的最远行驶距离
-        self.max_travel_distance = 2000
+        self.max_travel_distance = 1000
         # 出车的单位成本
         self.car_cost = 50
         # 行驶的单位成本
@@ -36,8 +38,8 @@ class VRPTW_ACO:
         self.vehicle_speed = 60
         # 创建信息素矩阵
         self.pheromone_mat = self.init_pheromone_mat()
-        self.eta_mat = 1 / graph.node_dist_mat
-
+        # 启发式信息矩阵
+        self.heuristic_info_mat = 1 / graph.node_dist_mat
         # best path
         self.best_path_distance = None
         self.best_path = None
@@ -72,7 +74,7 @@ class VRPTW_ACO:
                 ants[k].move_to_next_index(self.graph, self.vehicle_speed, 0)
 
             # 计算所有蚂蚁的路径长度
-            paths_distance = np.array([ant.calculate_path_distance(self.graph) for ant in ants])
+            paths_distance = np.array([ant.total_travel_distance for ant in ants])
 
             # 记录当前的最佳路径
             best_index = np.argmin(paths_distance)
@@ -93,14 +95,12 @@ class VRPTW_ACO:
         while not ant.index_to_visit_empty():
             next_index = random.choice(ant.index_to_visit)
             if not self.check_condition(ant, next_index):
-                next_index = random.choice(ant.index_to_visit)
-                if not self.check_condition(ant, next_index):
-                    next_index = 0
+                next_index = 0
 
             ant.move_to_next_index(self.graph, self.vehicle_speed, next_index)
         ant.move_to_next_index(self.graph, self.vehicle_speed, 0)
-        travel_distance = ant.calculate_path_distance(self.graph)
-        val = (1 / (self.graph.node_num * travel_distance))
+
+        val = (1 / (self.graph.node_num * ant.total_travel_distance))
         return np.ones((self.graph.node_num, self.graph.node_num)) * val
 
     def calculate_pheromone_rho(self, iter):
@@ -133,8 +133,18 @@ class VRPTW_ACO:
         current_index = ant.current_index
         index_to_visit = ant.index_to_visit
 
+        # 载重率信息
+        load_rating_mat = np.array([self.graph.nodes[ind].demand for ind in index_to_visit]) + ant.vehicle_load
+        load_rating_mat = load_rating_mat / self.max_load
+
+        # 行驶距离信息
+        distance_rating_mat = np.array([self.graph.node_dist_mat[current_index][ind] + self.graph.node_dist_mat[ind][0] for ind in index_to_visit])
+        distance_rating_mat = self.max_travel_distance / (ant.total_travel_distance + distance_rating_mat)
+
         transition_prob = np.power(self.pheromone_mat[current_index][index_to_visit], self.alpha) * \
-            np.power(self.eta_mat[current_index][index_to_visit], self.beta)
+            np.power(self.heuristic_info_mat[current_index][index_to_visit], self.beta) * \
+            np.power(load_rating_mat, self.gamma) * np.power(distance_rating_mat, self.lambda_)
+
         if np.random.rand() < self.q0:
             max_prob_index = np.argmax(transition_prob)
             next_index = index_to_visit[max_prob_index]
@@ -172,7 +182,7 @@ class VRPTW_ACO:
     def calculate_all_path_cost(self, ants):
         """
         计算所有蚂蚁行走路径的cost
-        :param paths:
+        :param ants:
         :return:
         """
         # 注意路径是否是从0开始、以0结束的
@@ -202,13 +212,13 @@ class VRPTW_ACO:
 
         # normalize
         max_tran_prob = np.max(transition_prob)
-        transition_prob = transition_prob/max_tran_prob
+        norm_transition_prob = transition_prob/max_tran_prob
 
         # select: O(1)
         while True:
             # randomly select an individual with uniform probability
             ind = int(N * random.random())
-            if random.random() <= transition_prob[ind]:
+            if random.random() <= norm_transition_prob[ind]:
                 return index_to_visit[ind]
 
 

@@ -65,11 +65,13 @@ class Ant:
         self.travel_path = [0]
         self.arrival_time = [0]
         self.index_to_visit = list(range(1, node_num))
+        self.total_travel_distance = 0
 
     def move_to_next_index(self, graph, vehicle_speed, next_index):
         # 更新蚂蚁路径
         self.travel_path.append(next_index)
         self.arrival_time.append(self.current_time)
+        self.total_travel_distance += graph.node_dist_mat[self.current_index][next_index]
 
         if next_index == 0:
             # 如果一下个位置为服务器点，则要将车辆负载等清空
@@ -88,16 +90,3 @@ class Ant:
 
     def index_to_visit_empty(self):
         return len(self.index_to_visit) == 0
-
-    def calculate_path_distance(self, graph: VPRTW_Graph):
-        """
-        计算所有蚂蚁的行走路径的长度
-        :param paths:
-        :return:
-        """
-        distance = 0
-        current_index = self.travel_path[0]
-        for index in self.travel_path[1:]:
-            distance += graph.node_dist_mat[current_index][index]
-            current_index = index
-        return distance
