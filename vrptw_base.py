@@ -88,3 +88,16 @@ class Ant:
 
     def index_to_visit_empty(self):
         return len(self.index_to_visit) == 0
+
+    def calculate_path_distance(self, graph: VPRTW_Graph):
+        """
+        计算所有蚂蚁的行走路径的长度
+        :param paths:
+        :return:
+        """
+        distance = 0
+        current_index = self.travel_path[0]
+        for index in self.travel_path[1:]:
+            distance += graph.node_dist_mat[current_index][index]
+            current_index = index
+        return distance
