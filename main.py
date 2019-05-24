@@ -4,19 +4,23 @@ import random
 
 
 class VRPTW_ACO:
-    def __init__(self, graph: VPRTW_Graph, ants_num=10, max_iter=100, alpha=1, beta=3, rho=0.2):
+    def __init__(self, graph: VPRTW_Graph, ants_num=10, max_iter=100, alpha=1, beta=2, rho=0.2):
         super()
-        # 结点的位置、服务时间信息
+        # graph 结点的位置、服务时间信息
         self.graph = graph
-        # 蚂蚁数量
+        # ants_num 蚂蚁数量
         self.ants_num = ants_num
-        # 最大迭代次数
+        # max_iter 最大迭代次数
         self.max_iter = max_iter
+        # alpha 信息素信息重要新
         self.alpha = alpha
+        # beta 启发性信息重要性
         self.beta = beta
+        # gamma 载重量信息重要性
         self.gamma = 1
+        # lambda_ 行驶距离重要性
         self.lambda_ = 1
-        # 信息素挥发速度
+        # pheromone_rho 信息素挥发速度
         self.pheromone_rho = rho
         # q0 表示直接选择概率最大的下一点的概率
         self.q0 = 0.1
@@ -81,7 +85,7 @@ class VRPTW_ACO:
             if self.best_path is None or paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[best_index].travel_path
                 self.best_path_distance = paths_distance[best_index]
-            print('[iteration %d]: best_cost %f' % (iter, self.best_path_distance))
+            print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
             self.update_pheromone_mat(ants, paths_distance)
 
@@ -174,9 +178,8 @@ class VRPTW_ACO:
         """
         self.pheromone_mat = (1 - self.pheromone_rho) * self.pheromone_mat
         for k in range(self.ants_num):
-            path = ants[k].travel_path
-            current_index = path[0]
-            for index in path[1:]:
+            current_index = ants[k].travel_path[0]
+            for index in ants[k].travel_path[1:]:
                 self.pheromone_mat[current_index][index] += self.Q / paths_distance[k]
 
     def calculate_all_path_cost(self, ants):
@@ -211,8 +214,8 @@ class VRPTW_ACO:
         N = len(index_to_visit)
 
         # normalize
-        max_tran_prob = np.max(transition_prob)
-        norm_transition_prob = transition_prob/max_tran_prob
+        sum_tran_prob = np.sum(transition_prob)
+        norm_transition_prob = transition_prob/sum_tran_prob
 
         # select: O(1)
         while True:
