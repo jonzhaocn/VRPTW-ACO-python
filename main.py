@@ -1,12 +1,11 @@
 import numpy as np
 from vrptw_base import VrptwGraph, Ant, NearestNeighborHeuristic
 import random
-import matplotlib.pyplot as plt
-import time
+from vprtw_aco_figure import VrptwAcoFigure
 
 
 class VrptwAco:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=400, alpha=1, beta=2, rho=0.1):
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=2, rho=0.1):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -36,13 +35,11 @@ class VrptwAco:
         self.best_path_distance = None
         self.best_path = None
 
-        self.whether_or_not_to_show_figure = True
+        self.whether_or_not_to_show_figure = False
 
         if self.whether_or_not_to_show_figure:
             # figure
-            self.figure = plt.figure(figsize=(10, 10))
-            self.figure_ax = self.figure.add_subplot(1, 1, 1)
-            self.figure_lines = None
+            self.figure = VrptwAcoFigure(self.graph)
 
     def run(self):
         """
@@ -82,13 +79,13 @@ class VrptwAco:
                 self.best_path = ants[best_index].travel_path
                 self.best_path_distance = paths_distance[best_index]
                 if self.whether_or_not_to_show_figure:
-                    self.init_figure()
+                    self.figure.init_figure(self.best_path)
 
             elif paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[best_index].travel_path
                 self.best_path_distance = paths_distance[best_index]
                 if self.whether_or_not_to_show_figure:
-                    self.update_figure()
+                    self.figure.update_figure(self.best_path)
 
             print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
@@ -172,26 +169,9 @@ class VrptwAco:
             if random.random() <= norm_transition_prob[ind]:
                 return index_to_visit[ind]
 
-    def init_figure(self):
-        self.figure_ax.plot(list(self.graph.nodes[index].x for index in self.best_path),
-                            list(self.graph.nodes[index].y for index in self.best_path), 'r.')
-
-        self.figure_lines = self.figure_ax.plot(list(self.graph.nodes[index].x for index in self.best_path),
-                                                list(self.graph.nodes[index].y for index in self.best_path), 'g-')
-        self.figure.show()
-
-    def update_figure(self):
-        for line in self.figure_lines:
-            self.figure_ax.lines.remove(line)
-
-        self.figure_lines = self.figure_ax.plot(list(self.graph.nodes[index].x for index in self.best_path),
-                                                list(self.graph.nodes[index].y for index in self.best_path), 'g-')
-        self.figure.canvas.draw()
-        time.sleep(0.2)
-
 
 if __name__ == '__main__':
-    file_path = './solomon-100/c101.txt'
+    file_path = './solomon-100/r101.txt'
     graph = VrptwGraph(file_path)
 
     vrptw = VrptwAco(graph)
