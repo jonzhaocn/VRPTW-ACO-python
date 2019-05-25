@@ -1,12 +1,12 @@
 import numpy as np
-from vrptw_base import VPRTW_Graph, Ant
+from vrptw_base import VrptwGraph, Ant, NearestNeighborHeuristic
 import random
 import matplotlib.pyplot as plt
 import time
 
 
-class VRPTW_ACO:
-    def __init__(self, graph: VPRTW_Graph, ants_num=10, max_iter=100, alpha=1, beta=3, rho=0.2):
+class VrptwAco:
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=400, alpha=1, beta=2, rho=0.1):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -18,31 +18,25 @@ class VRPTW_ACO:
         self.alpha = alpha
         # beta 启发性信息重要性
         self.beta = beta
-        # pheromone_rho 信息素挥发速度
-        self.pheromone_rho = rho
+        # rho 信息素挥发速度
+        self.rho = rho
         # q0 表示直接选择概率最大的下一点的概率
         self.q0 = 0.1
-        # Q 表示每辆车的最大载重
+        # vehicle_capacity 表示每辆车的最大载重
         self.max_load = graph.vehicle_capacity
-        # 出车的单位成本
-        self.car_cost = 50
-        # 行驶的单位成本
-        self.travel_cost = 1
-        # 早到时间成本
-        self.before_ready_time_cost = 1
-        # 晚到时间成本
-        self.after_due_time_cost = 2
         # 信息素强度
         self.Q = 1
         # 创建信息素矩阵
-        self.pheromone_mat = self.init_pheromone_mat()
+        nn_heuristic = NearestNeighborHeuristic(self.graph)
+        self.init_pheromone_val = nn_heuristic.cal_init_pheromone_val()
+        self.pheromone_mat = np.ones((self.graph.node_num, self.graph.node_num)) * self.init_pheromone_val
         # 启发式信息矩阵
         self.heuristic_info_mat = 1 / graph.node_dist_mat
         # best path
         self.best_path_distance = None
         self.best_path = None
 
-        self.whether_or_not_to_show_figure = False
+        self.whether_or_not_to_show_figure = True
 
         if self.whether_or_not_to_show_figure:
             # figure
@@ -73,9 +67,11 @@ class VRPTW_ACO:
 
                     # 更新蚂蚁路径
                     ants[k].move_to_next_index(self.graph, next_index)
+                    self.local_update_pheromone(ants[k].current_index, next_index)
 
                 # 最终回到0位置
                 ants[k].move_to_next_index(self.graph, 0)
+                self.local_update_pheromone(ants[k].current_index, 0)
 
             # 计算所有蚂蚁的路径长度
             paths_distance = np.array([ant.total_travel_distance for ant in ants])
@@ -96,25 +92,7 @@ class VRPTW_ACO:
 
             print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
-            self.update_pheromone_mat(ants, paths_distance)
-
-    def init_pheromone_mat(self):
-        """
-        初始化信息素矩阵
-        随机地选择蚂蚁走的下一个位置，并且下一个需要满足载重、行驶距离等要求，直到走完所有的点，然后计算行走的路程L，则信息素初始化为1/(N*L)，这里的N为结点个数
-        :return:
-        """
-        ant = Ant(self.graph.node_num)
-        while not ant.index_to_visit_empty():
-            next_index = random.choice(ant.index_to_visit)
-            if not self.check_condition(ant, next_index):
-                next_index = 0
-
-            ant.move_to_next_index(self.graph, next_index)
-        ant.move_to_next_index(self.graph, 0)
-
-        val = (1 / (self.graph.node_num * ant.total_travel_distance))
-        return np.ones((self.graph.node_num, self.graph.node_num)) * val
+            self.global_update_pheromone()
 
     def select_next_index(self, ant: Ant):
         """
@@ -147,42 +125,31 @@ class VRPTW_ACO:
         if ant.vehicle_load + self.graph.nodes[next_index].demand > self.max_load:
             return False
 
-        # 在数据集中,时间信息已经被换成了距离信息
-        if ant.vehicle_travel_distance + self.graph.node_dist_mat[current_index][next_index] + self.graph.node_dist_mat[next_index][0] > self.graph.nodes[0].due_time:
+        # 检查访问某一个旅客之后，能否回到服务店
+        if ant.vehicle_travel_time + self.graph.node_dist_mat[current_index][next_index] + self.graph.node_dist_mat[next_index][0] > self.graph.nodes[0].due_time:
             return False
+
+        # 不可以服务due time之外的旅客
+        if ant.vehicle_travel_time + self.graph.node_dist_mat[current_index][next_index] > self.graph.nodes[next_index].due_time:
+            return False
+
         return True
 
-    def update_pheromone_mat(self, ants, paths_distance):
+    def local_update_pheromone(self, start_ind, end_ind):
+        self.pheromone_mat[start_ind][end_ind] = (1-self.rho) * self.pheromone_mat[start_ind][end_ind] + \
+                                                 self.rho * self.init_pheromone_val
+
+    def global_update_pheromone(self):
         """
         更新信息素矩阵
         :return:
         """
-        self.pheromone_mat = (1 - self.pheromone_rho) * self.pheromone_mat
-        for k in range(self.ants_num):
-            current_index = ants[k].travel_path[0]
-            for index in ants[k].travel_path[1:]:
-                self.pheromone_mat[current_index][index] += self.Q / paths_distance[k]
+        self.pheromone_mat = (1-self.rho) * self.pheromone_mat
 
-    def calculate_all_path_cost(self, ants):
-        """
-        计算所有蚂蚁行走路径的cost
-        :param ants:
-        :return:
-        """
-        # 注意路径是否是从0开始、以0结束的
-        costs = np.zeros(self.ants_num)
-        for k in range(self.ants_num):
-            path = ants[k].travel_path
-            current_index = path[0]
-            for index in path[1:]:
-                if index == 0:
-                    costs[k] += self.car_cost + self.travel_cost * self.graph.node_dist_mat[current_index][index]
-                costs[k] += self.travel_cost * self.graph.node_dist_mat[current_index][index]
-                costs[k] += self.before_ready_time_cost * max(self.graph.nodes[index].ready_time-ants[k].arrival_time, 0) + \
-                            self.after_due_time_cost * max(ants[k].arrival_time-self.graph.nodes[index].due_time, 0)
-                current_index = index
-
-        return costs
+        current_ind = self.best_path[0]
+        for next_ind in self.best_path[1:]:
+            self.pheromone_mat[current_ind][next_ind] += self.Q/self.best_path_distance
+            current_ind = next_ind
 
     def stochastic_accept(self, index_to_visit, transition_prob):
         """
@@ -224,8 +191,8 @@ class VRPTW_ACO:
 
 
 if __name__ == '__main__':
-    file_path = './solomon-100/r101.txt'
-    graph = VPRTW_Graph(file_path)
+    file_path = './solomon-100/c101.txt'
+    graph = VrptwGraph(file_path)
 
-    vrptw = VRPTW_ACO(graph)
+    vrptw = VrptwAco(graph)
     vrptw.run()
