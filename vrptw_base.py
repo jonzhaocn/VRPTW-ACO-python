@@ -61,29 +61,26 @@ class Ant:
         self.current_index = 0
         self.vehicle_load = 0
         self.vehicle_travel_distance = 0
-        self.current_time = 0
         self.travel_path = [0]
         self.arrival_time = [0]
         self.index_to_visit = list(range(1, node_num))
         self.total_travel_distance = 0
 
-    def move_to_next_index(self, graph, vehicle_speed, next_index):
+    def move_to_next_index(self, graph, next_index):
         # 更新蚂蚁路径
         self.travel_path.append(next_index)
-        self.arrival_time.append(self.current_time)
+        self.arrival_time.append(self.vehicle_travel_distance)
         self.total_travel_distance += graph.node_dist_mat[self.current_index][next_index]
 
         if next_index == 0:
             # 如果一下个位置为服务器点，则要将车辆负载等清空
             self.vehicle_load = 0
             self.vehicle_travel_distance = 0
-            self.current_time = 0
 
         else:
             # 更新车辆负载、行驶距离、时间
             self.vehicle_load += graph.nodes[next_index].demand
-            self.vehicle_travel_distance += graph.node_dist_mat[self.current_index][next_index]
-            self.current_time += (graph.node_dist_mat[self.current_index][next_index] / vehicle_speed + graph.nodes[next_index].service_time)
+            self.vehicle_travel_distance += graph.node_dist_mat[self.current_index][next_index] + graph.nodes[next_index].service_time
             self.index_to_visit.remove(next_index)
 
         self.current_index = next_index
