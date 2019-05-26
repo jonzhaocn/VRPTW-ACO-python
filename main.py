@@ -145,7 +145,7 @@ class VrptwAco:
 
         current_ind = self.best_path[0]
         for next_ind in self.best_path[1:]:
-            self.pheromone_mat[current_ind][next_ind] += self.Q/self.best_path_distance
+            self.pheromone_mat[current_ind][next_ind] += self.rho/self.best_path_distance
             current_ind = next_ind
 
     def stochastic_accept(self, index_to_visit, transition_prob):
@@ -171,7 +171,7 @@ class VrptwAco:
 
 
 if __name__ == '__main__':
-    file_path = './solomon-100/r101.txt'
+    file_path = './solomon-100/c101.txt'
     graph = VrptwGraph(file_path)
 
     vrptw = VrptwAco(graph)

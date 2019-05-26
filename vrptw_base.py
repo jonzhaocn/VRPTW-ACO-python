@@ -5,6 +5,12 @@ class Node:
     def __init__(self, id:  int, x: float, y: float, demand: float, ready_time: float, due_time: float, service_time: float):
         super()
         self.id = id
+
+        if id == 0:
+            self.is_depot = True
+        else:
+            self.is_depot = False
+
         self.x = x
         self.y = y
         self.demand = demand
@@ -96,34 +102,53 @@ class Ant:
 class NearestNeighborHeuristic:
     def __init__(self, graph: VrptwGraph):
         self.graph = graph
-        self.ant = Ant(graph.node_num)
 
-    def cal_init_pheromone_val(self):
-        while not self.ant.index_to_visit_empty():
-            customers_meet_constrains = self.cal_customers_meet_constrains()
+    def construct_path(self):
+        """
+        不考虑使用的车辆的数目，调用近邻点算法构造路径
+        :return:
+        """
+        ant = Ant(self.graph.node_num)
+        while not ant.index_to_visit_empty():
+            customers_meet_constrains = self._cal_customers_meet_constrains(ant)
             if len(customers_meet_constrains) == 0:
                 next_index = 0
             else:
-                next_index = self.cal_nearest_customer(customers_meet_constrains)
+                next_index = self._cal_nearest_customer(customers_meet_constrains, ant)
 
-            self.ant.move_to_next_index(self.graph, next_index)
-        self.ant.move_to_next_index(self.graph, 0)
+            ant.move_to_next_index(self.graph, next_index)
+        ant.move_to_next_index(self.graph, 0)
 
-        init_pheromone = (1 / (self.graph.node_num * self.ant.total_travel_distance))
+        return ant
+
+    def cal_init_pheromone_val(self):
+        ant = self.construct_path()
+        init_pheromone = (1 / (self.graph.node_num * ant.total_travel_distance))
         return init_pheromone
 
-    def cal_customers_meet_constrains(self):
+    def _cal_customers_meet_constrains(self, ant: Ant):
+        """
+        找出所有从当前位置（ant.current_index）可达的customer
+        :param ant:
+        :return:
+        """
         customers_meet_constrains = []
-        current_ind = self.ant.current_index
-        for next_ind in self.ant.index_to_visit:
-            condition1 = self.ant.vehicle_travel_time + self.graph.node_dist_mat[current_ind][next_ind] <= self.graph.nodes[next_ind].due_time
-            condition2 = self.ant.vehicle_load + self.graph.nodes[next_ind].demand <= self.graph.vehicle_capacity
+        current_ind = ant.current_index
+        for next_ind in ant.index_to_visit:
+            condition1 = ant.vehicle_travel_time + self.graph.node_dist_mat[current_ind][next_ind] <= self.graph.nodes[next_ind].due_time
+            condition2 = ant.vehicle_load + self.graph.nodes[next_ind].demand <= self.graph.vehicle_capacity
             if condition1 and condition2:
                 customers_meet_constrains.append(next_ind)
         return customers_meet_constrains
 
-    def cal_nearest_customer(self, customers):
-        current_ind = self.ant.current_index
+    def _cal_nearest_customer(self, customers, ant: Ant):
+        """
+        从待选的customers中选择，离当前位置（ant.current_index）最近的customer
+        :param customers:
+        :param ant:
+        :return:
+        """
+        current_ind = ant.current_index
 
         nearest_ind = customers[0]
         min_dist = self.graph.node_dist_mat[current_ind][customers[0]]
