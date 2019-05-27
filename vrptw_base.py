@@ -178,17 +178,10 @@ class VrptwGraph:
         return nearest_ind
 
 
-class VrptwMessage:
-    def __init__(self, info_type, path, distance):
-        super()
-        if info_type != 'stop' and info_type != 'path_info':
-            raise RuntimeError('info_type should be: stop or path_info')
-        self.info_type = info_type
-        self.path = copy.deepcopy(path)
+class PathMessage:
+    def __init__(self, path, distance):
+        self.path = path
         self.distance = distance
 
     def get_path_info(self):
         return self.path, self.distance
-
-    def is_to_stop(self):
-        return self.info_type == 'stop'

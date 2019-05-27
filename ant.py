@@ -2,6 +2,7 @@ import numpy as np
 import copy
 import random
 from vrptw_base import VrptwGraph
+from threading import Event
 
 
 class Ant:
@@ -110,7 +111,7 @@ class Ant:
             current_ind = next_ind
         return distance
 
-    def try_insert_on_path(self, node_id, what_to_do_list: list):
+    def try_insert_on_path(self, node_id, stop_event: Event):
         """
         尝试性地将node_id插入当前的travel_path中
         插入的位置不能违反载重，时间，行驶距离的限制
@@ -125,10 +126,9 @@ class Ant:
 
         for insert_index in range(len(path)):
 
-            if len(what_to_do_list) > 0:
-                info = what_to_do_list[0]
-                if info.is_to_stop():
-                    return
+            if stop_event.is_set():
+                print('[try_insert_on_path]: receive stop event')
+                return
 
             if self.graph.nodes[path[insert_index]].is_depot:
                 continue
@@ -151,10 +151,9 @@ class Ant:
                 # 如果可以到node_id，则要保证vehicle可以行驶回到depot
                 for next_ind in path[insert_index:]:
 
-                    if len(what_to_do_list) > 0:
-                        info = what_to_do_list[0]
-                        if info.is_to_stop():
-                            return
+                    if stop_event.is_set():
+                        print('[try_insert_on_path]: receive stop event')
+                        return
 
                     if check_ant.check_condition(next_ind):
                         check_ant.move_to_next_index(next_ind)
@@ -181,7 +180,7 @@ class Ant:
                 path[i] = 0
         return path
 
-    def insertion_procedure(self, what_to_do_list: list):
+    def insertion_procedure(self, stop_even: Event):
         """
         为每个未访问的结点尝试性地找到一个合适的位置，插入到当前的travel_path
         插入的位置不能违反载重，时间，行驶距离的限制
@@ -201,19 +200,18 @@ class Ant:
 
         for node_id in ind_to_visit:
 
-            if len(what_to_do_list) > 0:
-                info = what_to_do_list[0]
-                if info.is_to_stop():
-                    return
+            if stop_even.is_set():
+                print('[insertion_procedure]: receive stop event')
+                return
 
-            best_insert_index = self.try_insert_on_path(node_id, what_to_do_list)
+            best_insert_index = self.try_insert_on_path(node_id, stop_even)
             if best_insert_index is not None:
                 self.travel_path.insert(best_insert_index, node_id)
                 self.index_to_visit.remove(node_id)
 
         self.total_travel_distance = self.cal_total_travel_distance(self.travel_path)
 
-    def local_search_procedure(self, what_to_do_list):
+    def local_search_procedure(self, stop_event: Event):
         """
         对当前的已经访问完graph中所有节点的travel_path使用cross进行局部搜索
         :return:
@@ -230,10 +228,9 @@ class Ant:
         for i in range(1, len(depot_ind)):
             for j in range(i+1, len(depot_ind)):
 
-                if len(what_to_do_list) > 0:
-                    info = what_to_do_list[0]
-                    if info.is_to_stop():
-                        return
+                if stop_event.is_set():
+                    print('[local_search_procedure]: receive stop event')
+                    return
 
                 # 随机在两段route，各随机选择一段customer id，交换这两段customer id
                 start_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
