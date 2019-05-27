@@ -128,7 +128,7 @@ class Ant:
         for insert_index in range(len(self.travel_path)):
 
             if stop_event.is_set():
-                print('[try_insert_on_path]: receive stop event')
+                # print('[try_insert_on_path]: receive stop event')
                 return
 
             if self.graph.nodes[self.travel_path[insert_index]].is_depot:
@@ -155,7 +155,7 @@ class Ant:
             for next_ind in self.travel_path[insert_index:]:
 
                 if stop_event.is_set():
-                    print('[try_insert_on_path]: receive stop event')
+                    # print('[try_insert_on_path]: receive stop event')
                     return
 
                 if check_ant.check_condition(next_ind):
@@ -183,13 +183,6 @@ class Ant:
             best_ind = feasible_insert_index[int(min_insert_ind)]
             return best_ind
 
-    def get_path_without_duplicated_depot(self):
-        path = copy.deepcopy(self.travel_path)
-        for i in range(len(path)):
-            if self.graph.nodes[i].is_depot:
-                path[i] = 0
-        return path
-
     def insertion_procedure(self, stop_even: Event):
         """
         为每个未访问的结点尝试性地找到一个合适的位置，插入到当前的travel_path
@@ -211,7 +204,7 @@ class Ant:
         for node_id in ind_to_visit:
 
             if stop_even.is_set():
-                print('[insertion_procedure]: receive stop event')
+                # print('[insertion_procedure]: receive stop event')
                 return
 
             best_insert_index = self.try_insert_on_path(node_id, stop_even)
@@ -239,7 +232,7 @@ class Ant:
             for j in range(i+1, len(depot_ind)):
 
                 if stop_event.is_set():
-                    print('[local_search_procedure]: receive stop event')
+                    # print('[local_search_procedure]: receive stop event')
                     return
 
                 # 随机在两段route，各随机选择一段customer id，交换这两段customer id
@@ -257,10 +250,10 @@ class Ant:
                 path.extend(self.travel_path[:start_a])
                 path.extend(self.travel_path[start_b:end_b+1])
                 path.extend(self.travel_path[end_a:start_b])
-                path.extend(self.travel_path[start_a:end_a+1])
+                path.extend(self.travel_path[start_a:end_a])
                 path.extend(self.travel_path[end_b+1:])
 
-                if len(path) != self.travel_path:
+                if len(path) != len(self.travel_path):
                     raise RuntimeError('error')
 
                 # 判断新生成的path是否是可行的
@@ -277,10 +270,11 @@ class Ant:
                     new_path.append(path)
 
         # 找出新生成的path中，路程最小的
-        new_path_travel_distance = np.array(new_path_travel_distance)
-        min_distance_ind = np.argmin(new_path_travel_distance)
-        min_distance = new_path_travel_distance[min_distance_ind]
+        if len(new_path_travel_distance) > 0:
+            new_path_travel_distance = np.array(new_path_travel_distance)
+            min_distance_ind = np.argmin(new_path_travel_distance)
+            min_distance = new_path_travel_distance[min_distance_ind]
 
-        if min_distance < self.total_travel_distance:
-            self.travel_path = new_path[int(min_distance_ind)]
-            self.index_to_visit.clear()
+            if min_distance < self.total_travel_distance:
+                self.travel_path = new_path[int(min_distance_ind)]
+                self.index_to_visit.clear()

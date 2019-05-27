@@ -6,6 +6,7 @@ from ant import Ant
 from threading import Thread, Event
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
+import copy
 
 
 class VrptwAco:
@@ -131,16 +132,22 @@ class VrptwAco:
                 return index_to_visit[ind]
 
     @staticmethod
-    def new_active_ant(ant: Ant, local_search: bool, IN: np.numarray, q0: float, stop_event: Event):
+    def new_active_ant(ant: Ant, vehicle_num: int, local_search: bool, IN: np.numarray, q0: float, stop_event: Event):
         # print('[new_active_ant]: start, start_index %d' % ant.travel_path[0])
         # 计算从当前位置可以达到的下一个位置
-        next_index_meet_constrains = ant.cal_next_index_meet_constrains()
+        unused_depot_count = vehicle_num - 1
 
-        while len(next_index_meet_constrains) > 0:
-
+        while not ant.index_to_visit_empty() and unused_depot_count > 0:
             if stop_event.is_set():
-                print('[new_active_ant]: receive stop event')
+                # print('[new_active_ant]: receive stop event')
                 return
+
+            next_index_meet_constrains = ant.cal_next_index_meet_constrains()
+
+            if len(next_index_meet_constrains) == 0:
+                ant.move_to_next_index(0)
+                unused_depot_count -= 1
+                continue
 
             index_num = len(next_index_meet_constrains)
             ready_time = np.zeros(index_num)
@@ -168,10 +175,7 @@ class VrptwAco:
 
             # 更新信息素矩阵
             ant.graph.local_update_pheromone(ant.current_index, next_index)
-
             ant.move_to_next_index(next_index)
-            # 重新计算可选的下一个点
-            next_index_meet_constrains = ant.cal_next_index_meet_constrains()
 
         # 如果走完所有的点了，需要回到depot
         if ant.index_to_visit_empty():
@@ -200,8 +204,8 @@ class VrptwAco:
                 return
 
             for k in range(ants_num):
-                ant = Ant(new_graph, random.randint(0, vehicle_num - 1))
-                thread = ants_pool.submit(VrptwAco.new_active_ant, ant, True, np.zeros(new_graph.node_num), q0, stop_event)
+                ant = Ant(new_graph, 0)
+                thread = ants_pool.submit(VrptwAco.new_active_ant, ant, vehicle_num, True, np.zeros(new_graph.node_num), q0, stop_event)
 
                 ants_thread.append(thread)
                 ants.append(ant)
@@ -225,7 +229,7 @@ class VrptwAco:
 
                 if ant.index_to_visit_empty() and ant.total_travel_distance < global_best_distance:
                     print('[acs_time]: found a improved feasible path, send path info to macs')
-                    path_found_queue.put(PathMessage(ant.get_path_without_duplicated_depot(), ant.total_travel_distance))
+                    path_found_queue.put(PathMessage(ant.travel_path, ant.total_travel_distance))
 
             # 在这里执行信息素的全局更新
             new_graph.global_update_pheromone(global_best_path, global_best_distance)
@@ -255,8 +259,8 @@ class VrptwAco:
                 return
 
             for k in range(ants_num):
-                ant = Ant(new_graph, random.randint(0, vehicle_num-1))
-                thread = ants_pool.submit(VrptwAco.new_active_ant, ant, True, IN, q0, stop_event)
+                ant = Ant(new_graph, 0)
+                thread = ants_pool.submit(VrptwAco.new_active_ant, ant, vehicle_num, True, IN, q0, stop_event)
 
                 ants_thread.append(thread)
                 ants.append(ant)
@@ -271,13 +275,12 @@ class VrptwAco:
                     print('[acs_vehicle]: receive stop event')
                     return
 
-                index_to_visit = ant.index_to_visit
+                index_to_visit = copy.deepcopy(ant.index_to_visit)
                 IN[index_to_visit] = IN[index_to_visit]+1
-                path = ant.get_path_without_duplicated_depot()
 
                 # 判断蚂蚁找出来的路径是否比current_path，能使用vehicle_num辆车访问到更多的结点
                 if len(index_to_visit) < len(current_index_to_visit):
-                    current_path = path
+                    current_path = copy.deepcopy(ant.travel_path)
                     current_index_to_visit = index_to_visit
                     current_path_distance = ant.total_travel_distance
                     # 并且将IN设置为0
@@ -286,7 +289,7 @@ class VrptwAco:
                     # 如果这一条路径是feasible的话，就要发到macs_vrptw中
                     if ant.index_to_visit_empty():
                         print('[acs_vehicle]: found a feasible path, send path info to macs')
-                        path_found_queue.put(PathMessage(ant.get_path_without_duplicated_depot(), ant.total_travel_distance))
+                        path_found_queue.put(PathMessage(ant.travel_path, ant.total_travel_distance))
 
             # 更新new_graph中的信息素，global
             new_graph.global_update_pheromone(current_path, current_path_distance)
@@ -316,15 +319,13 @@ class VrptwAco:
             global_path_to_acs_time.put(PathMessage(self.best_path, self.best_path_distance))
             # acs_vehicle
             stop_event = Event()
-            graph_for_acs_vehicle = self.graph.construct_graph_with_duplicated_depot(self.best_vehicle_num-1,
-                                                                                     self.graph.init_pheromone_val)
+            graph_for_acs_vehicle = self.graph.copy(self.graph.init_pheromone_val)
             acs_vehicle_thread = Thread(target=VrptwAco.acs_vehicle,
                                         args=(graph_for_acs_vehicle, self.best_vehicle_num-1, self.ants_num, self.q0,
                                               global_path_to_acs_vehicle, path_found_queue, stop_event))
 
             # acs_time
-            graph_for_acs_time = self.graph.construct_graph_with_duplicated_depot(self.best_vehicle_num,
-                                                                                  self.graph.init_pheromone_val)
+            graph_for_acs_time = self.graph.copy(self.graph.init_pheromone_val)
             acs_time_thread = Thread(target=VrptwAco.acs_time,
                                      args=(graph_for_acs_time, self.best_vehicle_num, self.ants_num, self.q0,
                                            global_path_to_acs_time, path_found_queue, stop_event))
@@ -347,7 +348,9 @@ class VrptwAco:
 
                 # 如果找到的路径（feasible）的距离更短，则更新当前的最佳path的信息
                 if found_path_distance < self.best_path_distance:
+                    print('-' * 50)
                     print('[macs]: distance of found path better than best path\'s')
+                    print('-' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path.count(0) - 1
                     self.best_path_distance = found_path_distance
@@ -355,7 +358,9 @@ class VrptwAco:
                 # 如果，这两个线程找到的路径用的车辆更少了，就停止这两个线程，开始下一轮迭代
                 # 向acs_time和acs_vehicle中发送停止信息
                 if found_path.count(0)-1 < best_vehicle_num:
+                    print('-' * 50)
                     print('[macs]: vehicle num of found path better than best path\'s')
+                    print('-' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path.count(0)-1
                     self.best_path_distance = found_path_distance

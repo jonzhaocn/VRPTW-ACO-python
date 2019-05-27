@@ -39,25 +39,9 @@ class VrptwGraph:
         # 启发式信息矩阵
         self.heuristic_info_mat = 1 / self.node_dist_mat
 
-    def construct_graph_with_duplicated_depot(self, vehicle_num, init_pheromone_val):
+    def copy(self, init_pheromone_val):
         new_graph = copy.deepcopy(self)
-        new_graph.node_num += vehicle_num-1
 
-        for i in range(vehicle_num-1):
-            new_graph.nodes.insert(0, copy.deepcopy(new_graph.nodes[0]))
-
-        # 从新计算距离
-        new_graph.node_dist_mat = np.zeros((new_graph.node_num, new_graph.node_num))
-        for i in range(new_graph.node_num):
-            original_i = max(0, i - vehicle_num + 1)
-
-            for j in range(i + 1, new_graph.node_num):
-                original_j = max(0, j - vehicle_num + 1)
-                new_graph.node_dist_mat[i][j] = self.node_dist_mat[original_i][original_j]
-                new_graph.node_dist_mat[j][i] = new_graph.node_dist_mat[i][j]
-
-                # 启发式信息
-        new_graph.heuristic_info_mat = 1 / new_graph.node_dist_mat
         # 信息素
         new_graph.init_pheromone_val = init_pheromone_val
         new_graph.pheromone_mat = np.ones((new_graph.node_num, new_graph.node_num)) * init_pheromone_val
