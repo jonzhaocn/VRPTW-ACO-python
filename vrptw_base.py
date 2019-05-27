@@ -32,7 +32,7 @@ class VrptwGraph:
         self.rho = rho
         # 创建信息素矩阵
 
-        self.init_pheromone_val = self._nearest_neighbor_heuristic()
+        self.nnh_travel_path, self.init_pheromone_val = self.nearest_neighbor_heuristic()
         self.init_pheromone_val = 1/(self.init_pheromone_val * self.node_num)
 
         self.pheromone_mat = np.ones((self.node_num, self.node_num)) * self.init_pheromone_val
@@ -49,18 +49,14 @@ class VrptwGraph:
         # 从新计算距离
         new_graph.node_dist_mat = np.zeros((new_graph.node_num, new_graph.node_num))
         for i in range(new_graph.node_num):
-            if 0 <= i <= vehicle_num - 1:
-                original_i = 0
-            else:
-                original_i = i - vehicle_num + 1
-            for j in range(i + 1, new_graph.node_num):
-                if 0 <= i <= vehicle_num - 1:
-                    original_j = 0
-                else:
-                    original_j = j - vehicle_num + 1
+            original_i = max(0, i - vehicle_num + 1)
 
-                new_graph.node_dist_mat[j][i] = new_graph.node_dist_mat[i][j] = self.node_dist_mat[original_i][original_j]
-        # 启发式信息
+            for j in range(i + 1, new_graph.node_num):
+                original_j = max(0, j - vehicle_num + 1)
+                new_graph.node_dist_mat[i][j] = self.node_dist_mat[original_i][original_j]
+                new_graph.node_dist_mat[j][i] = new_graph.node_dist_mat[i][j]
+
+                # 启发式信息
         new_graph.heuristic_info_mat = 1 / new_graph.node_dist_mat
         # 信息素
         new_graph.init_pheromone_val = init_pheromone_val
@@ -88,6 +84,7 @@ class VrptwGraph:
         node_dist_mat = np.zeros((node_num, node_num))
         for i in range(node_num):
             node_a = nodes[i]
+            node_dist_mat[i][i] = 1e-8
             for j in range(i+1, node_num):
                 node_b = nodes[j]
                 node_dist_mat[i][j] = VrptwGraph.calculate_dist(node_a, node_b)
@@ -115,12 +112,13 @@ class VrptwGraph:
             self.pheromone_mat[current_ind][next_ind] += self.rho/best_path_distance
             current_ind = next_ind
 
-    def _nearest_neighbor_heuristic(self):
+    def nearest_neighbor_heuristic(self):
         index_to_visit = list(range(1, self.node_num))
         current_index = 0
         current_load = 0
         current_time = 0
         travel_distance = 0
+        travel_path = [0]
         while len(index_to_visit) > 0:
             nearest_next_index = self._cal_nearest_next_index(index_to_visit, current_index, current_load, current_time)
 
@@ -129,6 +127,7 @@ class VrptwGraph:
 
                 current_load = 0
                 current_time = 0
+                travel_path.append(0)
                 current_index = 0
             else:
                 current_load += self.nodes[nearest_next_index].demand
@@ -141,9 +140,12 @@ class VrptwGraph:
                 index_to_visit.remove(nearest_next_index)
 
                 travel_distance += self.node_dist_mat[current_index][nearest_next_index]
-
+                travel_path.append(nearest_next_index)
                 current_index = nearest_next_index
-        return travel_distance
+        # 最后要回到depot
+        travel_distance += self.node_dist_mat[current_index][0]
+        travel_path.append(0)
+        return travel_path, travel_distance
 
     def _cal_nearest_next_index(self, index_to_visit, current_index, current_load, current_time):
         """
@@ -174,3 +176,19 @@ class VrptwGraph:
                 nearest_ind = next_index
 
         return nearest_ind
+
+
+class VrptwMessage:
+    def __init__(self, info_type, path, distance):
+        super()
+        if info_type != 'stop' and info_type != 'path_info':
+            raise RuntimeError('info_type should be: stop or path_info')
+        self.info_type = info_type
+        self.path = copy.deepcopy(path)
+        self.distance = distance
+
+    def get_path_info(self):
+        return self.path, self.distance
+
+    def is_to_stop(self):
+        return self.info_type == 'stop'

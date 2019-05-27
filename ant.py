@@ -8,7 +8,7 @@ class Ant:
     def __init__(self, graph: VrptwGraph, start_index=0):
         super()
         self.graph = graph
-        self.current_index = 0
+        self.current_index = start_index
         self.vehicle_load = 0
         self.vehicle_travel_time = 0
         self.travel_path = [start_index]
@@ -110,7 +110,7 @@ class Ant:
             current_ind = next_ind
         return distance
 
-    def try_insert_on_path(self, node_id):
+    def try_insert_on_path(self, node_id, what_to_do_list: list):
         """
         尝试性地将node_id插入当前的travel_path中
         插入的位置不能违反载重，时间，行驶距离的限制
@@ -124,6 +124,12 @@ class Ant:
         path = copy.deepcopy(self.travel_path)
 
         for insert_index in range(len(path)):
+
+            if len(what_to_do_list) > 0:
+                info = what_to_do_list[0]
+                if info.is_to_stop():
+                    return
+
             if self.graph.nodes[path[insert_index]].is_depot:
                 continue
 
@@ -144,6 +150,12 @@ class Ant:
 
                 # 如果可以到node_id，则要保证vehicle可以行驶回到depot
                 for next_ind in path[insert_index:]:
+
+                    if len(what_to_do_list) > 0:
+                        info = what_to_do_list[0]
+                        if info.is_to_stop():
+                            return
+
                     if check_ant.check_condition(next_ind):
                         check_ant.move_to_next_index(next_ind)
                         if self.graph.nodes[next_ind].is_depot:
@@ -162,7 +174,14 @@ class Ant:
             best_ind = feasible_insert_index[int(min_insert_ind)]
             return best_ind
 
-    def insertion_procedure(self):
+    def get_path_without_duplicated_depot(self):
+        path = copy.deepcopy(self.travel_path)
+        for i in range(len(path)):
+            if self.graph.nodes[i].is_depot:
+                path[i] = 0
+        return path
+
+    def insertion_procedure(self, what_to_do_list: list):
         """
         为每个未访问的结点尝试性地找到一个合适的位置，插入到当前的travel_path
         插入的位置不能违反载重，时间，行驶距离的限制
@@ -181,14 +200,20 @@ class Ant:
         ind_to_visit = ind_to_visit[sorted_ind]
 
         for node_id in ind_to_visit:
-            best_insert_index = self.try_insert_on_path(node_id)
+
+            if len(what_to_do_list) > 0:
+                info = what_to_do_list[0]
+                if info.is_to_stop():
+                    return
+
+            best_insert_index = self.try_insert_on_path(node_id, what_to_do_list)
             if best_insert_index is not None:
                 self.travel_path.insert(best_insert_index, node_id)
                 self.index_to_visit.remove(node_id)
 
         self.total_travel_distance = self.cal_total_travel_distance(self.travel_path)
 
-    def local_search_procedure(self):
+    def local_search_procedure(self, what_to_do_list):
         """
         对当前的已经访问完graph中所有节点的travel_path使用cross进行局部搜索
         :return:
@@ -204,6 +229,11 @@ class Ant:
         # 将self.travel_path分成多段，每段以depot开始，以depot结束，称为route
         for i in range(1, len(depot_ind)):
             for j in range(i+1, len(depot_ind)):
+
+                if len(what_to_do_list) > 0:
+                    info = what_to_do_list[0]
+                    if info.is_to_stop():
+                        return
 
                 # 随机在两段route，各随机选择一段customer id，交换这两段customer id
                 start_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
@@ -245,6 +275,5 @@ class Ant:
         min_distance = new_path_travel_distance[min_distance_ind]
 
         if min_distance < self.total_travel_distance:
-            return new_path[int(min_distance_ind)]
-        else:
-            return None
+            self.travel_path = new_path[int(min_distance_ind)]
+            self.index_to_visit.clear()
