@@ -33,6 +33,9 @@ class Ant:
             self.vehicle_load = 0
             self.vehicle_travel_time = 0
 
+            # remove duplicated_depot
+            if next_index in self.index_to_visit:
+                self.index_to_visit.remove(next_index)
         else:
             # 更新车辆负载、行驶距离、时间
             self.vehicle_load += self.graph.nodes[next_index].demand
@@ -122,15 +125,13 @@ class Ant:
         feasible_insert_index = []
         feasible_distance = []
 
-        path = copy.deepcopy(self.travel_path)
-
-        for insert_index in range(len(path)):
+        for insert_index in range(len(self.travel_path)):
 
             if stop_event.is_set():
                 print('[try_insert_on_path]: receive stop event')
                 return
 
-            if self.graph.nodes[path[insert_index]].is_depot:
+            if self.graph.nodes[self.travel_path[insert_index]].is_depot:
                 continue
 
             front_depot_index = insert_index
@@ -138,32 +139,41 @@ class Ant:
                 front_depot_index -= 1
             front_depot_index = max(front_depot_index, 0)
 
-            check_ant = Ant(self.graph, path[0])
+            check_ant = Ant(self.graph, self.travel_path[front_depot_index])
 
             # 让check_ant 走过 path中下标从front_depot_index开始到insert_index-1的点
-            for i in range(front_depot_index, insert_index):
-                check_ant.move_to_next_index(path[i])
+            for i in range(front_depot_index+1, insert_index):
+                check_ant.move_to_next_index(self.travel_path[i])
 
             # 开始尝试性地对排序后的index_to_visit中的结点进行访问
             if check_ant.check_condition(node_id):
                 check_ant.move_to_next_index(node_id)
+            else:
+                continue
 
-                # 如果可以到node_id，则要保证vehicle可以行驶回到depot
-                for next_ind in path[insert_index:]:
+            # 如果可以到node_id，则要保证vehicle可以行驶回到depot
+            for next_ind in self.travel_path[insert_index:]:
 
-                    if stop_event.is_set():
-                        print('[try_insert_on_path]: receive stop event')
-                        return
+                if stop_event.is_set():
+                    print('[try_insert_on_path]: receive stop event')
+                    return
 
-                    if check_ant.check_condition(next_ind):
-                        check_ant.move_to_next_index(next_ind)
-                        if self.graph.nodes[next_ind].is_depot:
-                            feasible_insert_index.append(insert_index)
-                            path.insert(insert_index, node_id)
-                            feasible_distance.append(self.cal_total_travel_distance(path))
-                    # 如果不可以回到depot，则返回上一层
-                    else:
+                if check_ant.check_condition(next_ind):
+
+                    check_ant.move_to_next_index(next_ind)
+
+                    # 如果回到了depot
+                    if self.graph.nodes[next_ind].is_depot:
+                        feasible_insert_index.append(insert_index)
+                        # 计算距离
+                        path = copy.deepcopy(self.travel_path)
+                        path.insert(insert_index, node_id)
+                        feasible_distance.append(self.cal_total_travel_distance(path))
                         break
+
+                # 如果不可以回到depot，则返回上一层
+                else:
+                    break
 
         if len(feasible_distance) == 0:
             return None
@@ -189,7 +199,7 @@ class Ant:
         if self.index_to_visit_empty():
             return
 
-        ind_to_visit = copy.deepcopy(self.index_to_visit)
+        ind_to_visit = np.array(copy.deepcopy(self.index_to_visit))
 
         demand = np.zeros(len(ind_to_visit))
         for i in range(len(ind_to_visit)):

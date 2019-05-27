@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class VrptwAco:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=2):
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=1):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -132,7 +132,7 @@ class VrptwAco:
 
     @staticmethod
     def new_active_ant(ant: Ant, local_search: bool, IN: np.numarray, q0: float, stop_event: Event):
-        print('[new_active_ant]: start, start_index %d' % ant.travel_path[0])
+        # print('[new_active_ant]: start, start_index %d' % ant.travel_path[0])
         # 计算从当前位置可以达到的下一个位置
         next_index_meet_constrains = ant.cal_next_index_meet_constrains()
 
@@ -165,10 +165,11 @@ class VrptwAco:
             else:
                 # 使用轮盘赌算法
                 next_index = VrptwAco.stochastic_accept(next_index_meet_constrains, closeness)
-            ant.move_to_next_index(next_index)
 
             # 更新信息素矩阵
+            ant.graph.local_update_pheromone(ant.current_index, next_index)
 
+            ant.move_to_next_index(next_index)
             # 重新计算可选的下一个点
             next_index_meet_constrains = ant.cal_next_index_meet_constrains()
 
@@ -182,8 +183,6 @@ class VrptwAco:
         # ant.index_to_visit_empty()==True就是feasible的意思
         if local_search is True and ant.index_to_visit_empty():
             ant.local_search_procedure(stop_event)
-
-        return ant.get_path_without_duplicated_depot()
 
     @staticmethod
     def acs_time(new_graph: VrptwGraph, vehicle_num, ants_num, q0, global_path_queue: Queue, path_found_queue: Queue, stop_event: Event):
@@ -310,7 +309,11 @@ class VrptwAco:
         # 使用近邻点算法初始化
         self.best_path, self.best_path_distance = self.graph.nearest_neighbor_heuristic()
         self.best_vehicle_num = self.best_path.count(0) - 1
+
         while True:
+            # 当前best path的信息
+            global_path_to_acs_vehicle.put(PathMessage(self.best_path, self.best_path_distance))
+            global_path_to_acs_time.put(PathMessage(self.best_path, self.best_path_distance))
             # acs_vehicle
             stop_event = Event()
             graph_for_acs_vehicle = self.graph.construct_graph_with_duplicated_depot(self.best_vehicle_num-1,

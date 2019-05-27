@@ -60,7 +60,7 @@ class VrptwGraph:
         new_graph.heuristic_info_mat = 1 / new_graph.node_dist_mat
         # 信息素
         new_graph.init_pheromone_val = init_pheromone_val
-        new_graph.pheromone_mat = np.ones((self.node_num, self.node_num)) * self.init_pheromone_val
+        new_graph.pheromone_mat = np.ones((new_graph.node_num, new_graph.node_num)) * init_pheromone_val
 
         return new_graph
 
