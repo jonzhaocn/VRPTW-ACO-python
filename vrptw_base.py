@@ -164,8 +164,8 @@ class VrptwGraph:
 
 class PathMessage:
     def __init__(self, path, distance):
-        self.path = path
-        self.distance = distance
+        self.path = copy.deepcopy(path)
+        self.distance = copy.deepcopy(distance)
 
     def get_path_info(self):
         return self.path, self.distance

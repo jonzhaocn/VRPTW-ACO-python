@@ -1,47 +1,50 @@
 import matplotlib.pyplot as plt
 from vrptw_base import VrptwGraph
-import time
+from queue import Queue
 
 
 class VrptwAcoFigure:
-    def __init__(self, graph: VrptwGraph):
+    def __init__(self, graph: VrptwGraph, path_queue: Queue):
         self.graph = graph
         self.figure = plt.figure(figsize=(10, 10))
         self.figure_ax = self.figure.add_subplot(1, 1, 1)
-
+        self.path_queue = path_queue
         self._dot_color = 'k'
         self._line_color_list = ['r', 'y', 'g', 'c', 'b', 'm']
 
-    def init_figure(self, path):
-        self.figure_ax.plot(list(self.graph.nodes[index].x for index in path),
-                            list(self.graph.nodes[index].y for index in path), '%s.' % self._dot_color)
-        self._draw_line(path)
+    def _draw_point(self):
+        # 先画出图中的点
+        self.figure_ax.plot(list(node.x for node in self.graph.nodes),
+                            list(node.y for node in self.graph.nodes), '%s.' % self._dot_color)
         self.figure.show()
-        time.sleep(0.2)
+        plt.pause(0.5)
 
-    def update_figure(self, path):
-        for line in self.figure_ax.lines:
-            if line._color != self._dot_color:
-                self.figure_ax.lines.remove(line)
+    def run(self):
+        self._draw_point()
 
-        self._draw_line(path)
+        # 从队列中读取新的path，进行绘制
+        while True:
+            if not self.path_queue.empty():
+                info = self.path_queue.get()
+                while not self.path_queue.empty():
+                    info = self.path_queue.get()
+                path, distance = info.get_path_info()
 
-        self.figure.canvas.draw()
-        time.sleep(0.2)
+                if path is None:
+                    break
+
+                self.figure_ax.clear()
+                self._draw_point()
+                self.figure.canvas.draw()
+                plt.pause(1)
+
+                self._draw_line(path)
+            plt.pause(1)
 
     def _draw_line(self, path):
-        color_ind = 0
-        x_list = []
-        y_list = []
-        i = 0
-        while i < len(path):
-            x_list.append(self.graph.nodes[path[i]].x)
-            y_list.append(self.graph.nodes[path[i]].y)
-
-            if path[i] == 0 and len(x_list) > 1:
-                self.figure_ax.plot(x_list, y_list, '%s-' % self._line_color_list[color_ind])
-                color_ind = (color_ind + 1) % len(self._line_color_list)
-                x_list.clear()
-                y_list.clear()
-                i -= 1
-            i += 1
+        # 根据path中index进行路劲的绘制
+        for i in range(1, len(path)):
+            x_list = [self.graph.nodes[path[i - 1]].x, self.graph.nodes[path[i]].x]
+            y_list = [self.graph.nodes[path[i - 1]].y, self.graph.nodes[path[i]].y]
+            self.figure_ax.plot(x_list, y_list, '%s-' % self._line_color_list[0])
+            plt.pause(0.05)

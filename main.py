@@ -10,7 +10,7 @@ import copy
 
 
 class VrptwAco:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=1):
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=2):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -33,13 +33,25 @@ class VrptwAco:
         self.best_path = None
         self.best_vehicle_num = None
 
-        self.whether_or_not_to_show_figure = False
+        self.whether_or_not_to_show_figure = True
 
+    def run_basic_aco(self):
+        # 开启一个线程来跑_basic_aco，使用主线程来绘图
+        path_queue_for_figure = Queue()
+        basic_aco_thread = Thread(target=self._basic_aco, args=(path_queue_for_figure,))
+        basic_aco_thread.start()
+
+        # 是否要展示figure
         if self.whether_or_not_to_show_figure:
-            # figure
-            self.figure = VrptwAcoFigure(self.graph)
+            figure = VrptwAcoFigure(self.graph, path_queue_for_figure)
+            figure.run()
+        basic_aco_thread.join()
 
-    def basic_aco(self):
+        # 传入None作为结束标志
+        if self.whether_or_not_to_show_figure:
+            path_queue_for_figure.put(PathMessage(None, None))
+
+    def _basic_aco(self, path_queue_for_figure: Queue):
         """
         最基本的蚁群算法
         :return:
@@ -77,13 +89,13 @@ class VrptwAco:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
                 if self.whether_or_not_to_show_figure:
-                    self.figure.init_figure(self.best_path)
+                    path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
             elif paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
                 if self.whether_or_not_to_show_figure:
-                    self.figure.update_figure(self.best_path)
+                    path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
             print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
@@ -134,21 +146,26 @@ class VrptwAco:
     @staticmethod
     def new_active_ant(ant: Ant, vehicle_num: int, local_search: bool, IN: np.numarray, q0: float, stop_event: Event):
         # print('[new_active_ant]: start, start_index %d' % ant.travel_path[0])
-        # 计算从当前位置可以达到的下一个位置
-        unused_depot_count = vehicle_num - 1
 
+        # 在new_active_ant中，最多可以使用vehicle_num个车，即最多可以包含vehicle_num+1个depot结点，由于出发结点用掉了一个，所以只剩下vehicle个depot
+        unused_depot_count = vehicle_num
+
+        # 如果还有未访问的结点，并且还可以回到depot中
         while not ant.index_to_visit_empty() and unused_depot_count > 0:
             if stop_event.is_set():
                 # print('[new_active_ant]: receive stop event')
                 return
 
+            # 计算所有满足载重等限制的下一个结点
             next_index_meet_constrains = ant.cal_next_index_meet_constrains()
 
+            # 如果没有满足限制的下一个结点，则回到depot中
             if len(next_index_meet_constrains) == 0:
                 ant.move_to_next_index(0)
                 unused_depot_count -= 1
                 continue
 
+            # 开始计算满足限制的下一个结点，选择各个结点的概率
             index_num = len(next_index_meet_constrains)
             ready_time = np.zeros(index_num)
             due_time = np.zeros(index_num)
@@ -165,7 +182,7 @@ class VrptwAco:
             distance = np.array([max(1.0, j) for j in distance-IN[next_index_meet_constrains]])
             closeness = 1/distance
 
-            # 按照概率选择下一个点next_index
+            # 按照概率直接选择closeness最大的结点
             if np.random.rand() < q0:
                 max_prob_index = np.argmax(closeness)
                 next_index = next_index_meet_constrains[max_prob_index]
@@ -190,6 +207,8 @@ class VrptwAco:
 
     @staticmethod
     def acs_time(new_graph: VrptwGraph, vehicle_num, ants_num, q0, global_path_queue: Queue, path_found_queue: Queue, stop_event: Event):
+        # 最多可以使用vehicle_num辆车，即在path中最多包含vehicle_num+1个depot中，找到路程最短的路径，
+        # vehicle_num设置为与当前的best_path一致
         print('[acs_time]: start, vehicle_num %d' % vehicle_num)
         # 初始化信息素矩阵
         global_best_path = None
@@ -222,8 +241,10 @@ class VrptwAco:
                     return
 
                 # 如果比全局的路径要好，则要将该路径发送到macs中
-                while not global_path_queue.empty():
+                if not global_path_queue.empty():
                     info = global_path_queue.get()
+                    while not global_path_queue.empty():
+                        info = global_path_queue.get()
                     print('[acs_time]: receive global path info')
                     global_best_path, global_best_distance = info.get_path_info()
 
@@ -236,6 +257,8 @@ class VrptwAco:
 
     @staticmethod
     def acs_vehicle(new_graph: VrptwGraph, vehicle_num: int, ants_num: int, q0: float, global_path_queue: Queue, path_found_queue: Queue, stop_event: Event):
+        # 最多可以使用vehicle_num辆车，即在path中最多包含vehicle_num+1个depot中，找到路程最短的路径，
+        # vehicle_num设置为比当前的best_path少一个
         print('[acs_vehicle]: start, vehicle_num %d' % vehicle_num)
         global_best_path = None
         global_best_distance = None
@@ -294,14 +317,32 @@ class VrptwAco:
             # 更新new_graph中的信息素，global
             new_graph.global_update_pheromone(current_path, current_path_distance)
 
-            while not global_path_queue.empty():
+            if not global_path_queue.empty():
                 info = global_path_queue.get()
+                while not global_path_queue.empty():
+                    info = global_path_queue.get()
                 print('[acs_vehicle]: receive global path info')
                 global_best_path, global_best_distance = info.get_path_info()
 
             new_graph.global_update_pheromone(global_best_path, global_best_distance)
 
-    def multiple_ant_colony_system(self):
+    def run_multiple_ant_colony_system(self):
+        # _multiple_ant_colony_system，使用主线程来绘图
+        path_queue_for_figure = Queue()
+        multiple_ant_colony_system_thread = Thread(target=self._multiple_ant_colony_system, args=(path_queue_for_figure,))
+        multiple_ant_colony_system_thread.start()
+
+        # 是否要展示figure
+        if self.whether_or_not_to_show_figure:
+            figure = VrptwAcoFigure(self.graph, path_queue_for_figure)
+            figure.run()
+        multiple_ant_colony_system_thread.join()
+
+        # 传入None作为结束标志
+        if self.whether_or_not_to_show_figure:
+            path_queue_for_figure.put(PathMessage(None, None))
+
+    def _multiple_ant_colony_system(self, path_queue_for_figure: Queue):
         # 在这里需要两个队列，time_what_to_do、vehicle_what_to_do， 用来告诉acs_time、acs_vehicle这两个线程，当前的best path是什么，或者让他们停止计算
         global_path_to_acs_time = Queue()
         global_path_to_acs_vehicle = Queue()
@@ -317,6 +358,7 @@ class VrptwAco:
             # 当前best path的信息
             global_path_to_acs_vehicle.put(PathMessage(self.best_path, self.best_path_distance))
             global_path_to_acs_time.put(PathMessage(self.best_path, self.best_path_distance))
+
             # acs_vehicle
             stop_event = Event()
             graph_for_acs_vehicle = self.graph.copy(self.graph.init_pheromone_val)
@@ -349,21 +391,32 @@ class VrptwAco:
                 # 如果找到的路径（feasible）的距离更短，则更新当前的最佳path的信息
                 if found_path_distance < self.best_path_distance:
                     print('-' * 50)
-                    print('[macs]: distance of found path better than best path\'s')
+                    print('[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
                     print('-' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path.count(0) - 1
                     self.best_path_distance = found_path_distance
 
+                    # 如果需要绘制图形，则要找到的best path发送给绘图程序
+                    if self.whether_or_not_to_show_figure:
+                        path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
+
+                    # 通知acs_vehicle和acs_time两个线程，当前找到的best_path和best_path_distance
+                    global_path_to_acs_vehicle.put(PathMessage(self.best_path, self.best_path_distance))
+                    global_path_to_acs_time.put(PathMessage(self.best_path, self.best_path_distance))
+
                 # 如果，这两个线程找到的路径用的车辆更少了，就停止这两个线程，开始下一轮迭代
                 # 向acs_time和acs_vehicle中发送停止信息
                 if found_path.count(0)-1 < best_vehicle_num:
                     print('-' * 50)
-                    print('[macs]: vehicle num of found path better than best path\'s')
+                    print('[macs]: vehicle num of found path (%d) better than best path\'s (%d)' % (found_path.count(0)-1, best_vehicle_num))
                     print('-' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path.count(0)-1
                     self.best_path_distance = found_path_distance
+
+                    if self.whether_or_not_to_show_figure:
+                        path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
                     # 停止acs_time 和 acs_vehicle 两个线程
                     print('[macs]: send stop info to acs_time and acs_vehicle')
@@ -375,4 +428,4 @@ if __name__ == '__main__':
     graph = VrptwGraph(file_path)
 
     vrptw = VrptwAco(graph)
-    vrptw.multiple_ant_colony_system()
+    vrptw.run_multiple_ant_colony_system()
