@@ -8,7 +8,7 @@ from queue import Queue
 
 
 class BasicACO:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=2):
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, beta=2):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -20,8 +20,6 @@ class BasicACO:
         self.max_load = graph.vehicle_capacity
         # 信息素强度
         self.Q = 1
-        # alpha 信息素信息重要新
-        self.alpha = alpha
         # beta 启发性信息重要性
         self.beta = beta
         # q0 表示直接选择概率最大的下一点的概率
@@ -41,7 +39,7 @@ class BasicACO:
 
         # 是否要展示figure
         if self.whether_or_not_to_show_figure:
-            figure = VrptwAcoFigure(self.graph, path_queue_for_figure)
+            figure = VrptwAcoFigure(self.graph.nodes, path_queue_for_figure)
             figure.run()
         basic_aco_thread.join()
 
@@ -55,6 +53,7 @@ class BasicACO:
         :return:
         """
         # 最大迭代次数
+        start_iteration = 0
         for iter in range(self.max_iter):
 
             # 为每只蚂蚁设置当前车辆负载，当前旅行距离，当前时间
@@ -86,18 +85,26 @@ class BasicACO:
             if self.best_path is None:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
+
+                # 图形化展示
                 if self.whether_or_not_to_show_figure:
                     path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
             elif paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
+
+                # 图形化展示
                 if self.whether_or_not_to_show_figure:
                     path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
             print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
             self.graph.global_update_pheromone(self.best_path, self.best_path_distance)
+
+            given_iteration = 50
+            if iter - start_iteration > given_iteration:
+                print('iteration is up: can not find better solution in %d iteration' % given_iteration)
 
     def select_next_index(self, ant):
         """
@@ -108,8 +115,9 @@ class BasicACO:
         current_index = ant.current_index
         index_to_visit = ant.index_to_visit
 
-        transition_prob = np.power(self.graph.pheromone_mat[current_index][index_to_visit], self.alpha) * \
+        transition_prob = self.graph.pheromone_mat[current_index][index_to_visit] * \
             np.power(self.graph.heuristic_info_mat[current_index][index_to_visit], self.beta)
+        transition_prob = transition_prob / np.sum(transition_prob)
 
         if np.random.rand() < self.q0:
             max_prob_index = np.argmax(transition_prob)

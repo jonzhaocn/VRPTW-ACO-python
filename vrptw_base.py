@@ -32,7 +32,7 @@ class VrptwGraph:
         self.rho = rho
         # 创建信息素矩阵
 
-        self.nnh_travel_path, self.init_pheromone_val = self.nearest_neighbor_heuristic()
+        self.nnh_travel_path, self.init_pheromone_val, _ = self.nearest_neighbor_heuristic()
         self.init_pheromone_val = 1/(self.init_pheromone_val * self.node_num)
 
         self.pheromone_mat = np.ones((self.node_num, self.node_num)) * self.init_pheromone_val
@@ -129,7 +129,9 @@ class VrptwGraph:
         # 最后要回到depot
         travel_distance += self.node_dist_mat[current_index][0]
         travel_path.append(0)
-        return travel_path, travel_distance
+
+        vehicle_num = travel_path.count(0)-1
+        return travel_path, travel_distance, vehicle_num
 
     def _cal_nearest_next_index(self, index_to_visit, current_index, current_load, current_time):
         """
@@ -166,6 +168,7 @@ class PathMessage:
     def __init__(self, path, distance):
         self.path = copy.deepcopy(path)
         self.distance = copy.deepcopy(distance)
+        self.used_vehicle_num = self.path.count(0) - 1
 
     def get_path_info(self):
-        return self.path, self.distance
+        return self.path, self.distance, self.used_vehicle_num
