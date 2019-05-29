@@ -8,7 +8,8 @@ from queue import Queue
 
 
 class BasicACO:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, beta=2):
+    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, beta=2, q0=0.1,
+                 whether_or_not_to_show_figure=True):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -18,18 +19,16 @@ class BasicACO:
         self.max_iter = max_iter
         # vehicle_capacity 表示每辆车的最大载重
         self.max_load = graph.vehicle_capacity
-        # 信息素强度
-        self.Q = 1
         # beta 启发性信息重要性
         self.beta = beta
         # q0 表示直接选择概率最大的下一点的概率
-        self.q0 = 0.1
+        self.q0 = q0
         # best path
         self.best_path_distance = None
         self.best_path = None
         self.best_vehicle_num = None
 
-        self.whether_or_not_to_show_figure = True
+        self.whether_or_not_to_show_figure = whether_or_not_to_show_figure
 
     def run_basic_aco(self):
         # 开启一个线程来跑_basic_aco，使用主线程来绘图
@@ -85,6 +84,7 @@ class BasicACO:
             if self.best_path is None:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
+                start_iteration = iter
 
                 # 图形化展示
                 if self.whether_or_not_to_show_figure:
@@ -93,7 +93,7 @@ class BasicACO:
             elif paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
-
+                start_iteration = iter
                 # 图形化展示
                 if self.whether_or_not_to_show_figure:
                     path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
@@ -102,9 +102,11 @@ class BasicACO:
             # 更新信息素表
             self.graph.global_update_pheromone(self.best_path, self.best_path_distance)
 
-            given_iteration = 50
+            given_iteration = 100
             if iter - start_iteration > given_iteration:
                 print('iteration is up: can not find better solution in %d iteration' % given_iteration)
+                print('exit.')
+                break
 
     def select_next_index(self, ant):
         """

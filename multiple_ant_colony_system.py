@@ -11,30 +11,24 @@ import time
 
 
 class MultipleAntColonySystem:
-    def __init__(self, graph: VrptwGraph, ants_num=10, max_iter=200, alpha=1, beta=2):
+    def __init__(self, graph: VrptwGraph, ants_num=10, beta=2, q0=0.1, whether_or_not_to_show_figure=True):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
         # ants_num 蚂蚁数量
         self.ants_num = ants_num
-        # max_iter 最大迭代次数
-        self.max_iter = max_iter
         # vehicle_capacity 表示每辆车的最大载重
         self.max_load = graph.vehicle_capacity
-        # 信息素强度
-        self.Q = 1
-        # alpha 信息素信息重要新
-        self.alpha = alpha
         # beta 启发性信息重要性
         self.beta = beta
         # q0 表示直接选择概率最大的下一点的概率
-        self.q0 = 0.1
+        self.q0 = q0
         # best path
         self.best_path_distance = None
         self.best_path = None
         self.best_vehicle_num = None
 
-        self.whether_or_not_to_show_figure = True
+        self.whether_or_not_to_show_figure = whether_or_not_to_show_figure
 
     @staticmethod
     def stochastic_accept(index_to_visit, transition_prob):
@@ -60,6 +54,19 @@ class MultipleAntColonySystem:
 
     @staticmethod
     def new_active_ant(ant: Ant, vehicle_num: int, local_search: bool, IN: np.numarray, q0: float, beta: int, stop_event: Event):
+        """
+        按照指定的vehicle_num在地图上进行探索，所使用的vehicle num不能多于指定的数量，acs_time和acs_vehicle都会使用到这个方法
+        对于acs_time来说，需要访问完所有的结点（路径是可行的），尽量找到travel distance更短的路径
+        对于acs_vehicle来说，所使用的vehicle num会比当前所找到的best path所使用的车辆数少一辆，要使用更少的车辆，尽量去访问结点，如果访问完了所有的结点（路径是可行的），就将通知macs
+        :param ant:
+        :param vehicle_num:
+        :param local_search:
+        :param IN:
+        :param q0:
+        :param beta:
+        :param stop_event:
+        :return:
+        """
         # print('[new_active_ant]: start, start_index %d' % ant.travel_path[0])
 
         # 在new_active_ant中，最多可以使用vehicle_num个车，即最多可以包含vehicle_num+1个depot结点，由于出发结点用掉了一个，所以只剩下vehicle个depot
@@ -128,6 +135,18 @@ class MultipleAntColonySystem:
     @staticmethod
     def acs_time(new_graph: VrptwGraph, vehicle_num: int, ants_num: int, q0: float, beta: int,
                  global_path_queue: Queue, path_found_queue: Queue, stop_event: Event):
+        """
+        对于acs_time来说，需要访问完所有的结点（路径是可行的），尽量找到travel distance更短的路径
+        :param new_graph:
+        :param vehicle_num:
+        :param ants_num:
+        :param q0:
+        :param beta:
+        :param global_path_queue:
+        :param path_found_queue:
+        :param stop_event:
+        :return:
+        """
 
         # 最多可以使用vehicle_num辆车，即在path中最多包含vehicle_num+1个depot中，找到路程最短的路径，
         # vehicle_num设置为与当前的best_path一致
@@ -182,8 +201,18 @@ class MultipleAntColonySystem:
     @staticmethod
     def acs_vehicle(new_graph: VrptwGraph, vehicle_num: int, ants_num: int, q0: float, beta: int,
                     global_path_queue: Queue, path_found_queue: Queue, stop_event: Event):
-
-        # 最多可以使用vehicle_num辆车，即在path中最多包含vehicle_num+1个depot中，找到路程最短的路径，
+        """
+        对于acs_vehicle来说，所使用的vehicle num会比当前所找到的best path所使用的车辆数少一辆，要使用更少的车辆，尽量去访问结点，如果访问完了所有的结点（路径是可行的），就将通知macs
+        :param new_graph:
+        :param vehicle_num:
+        :param ants_num:
+        :param q0:
+        :param beta:
+        :param global_path_queue:
+        :param path_found_queue:
+        :param stop_event:
+        :return:
+        """
         # vehicle_num设置为比当前的best_path少一个
         print('[acs_vehicle]: start, vehicle_num %d' % vehicle_num)
         global_best_path = None
@@ -254,7 +283,10 @@ class MultipleAntColonySystem:
             new_graph.global_update_pheromone(global_best_path, global_best_distance)
 
     def run_multiple_ant_colony_system(self):
-        # _multiple_ant_colony_system，使用主线程来绘图
+        """
+        开启另外的线程来跑multiple_ant_colony_system， 使用主线程来绘图
+        :return:
+        """
         path_queue_for_figure = Queue()
         multiple_ant_colony_system_thread = Thread(target=self._multiple_ant_colony_system, args=(path_queue_for_figure,))
         multiple_ant_colony_system_thread.start()
@@ -270,6 +302,11 @@ class MultipleAntColonySystem:
             path_queue_for_figure.put(PathMessage(None, None))
 
     def _multiple_ant_colony_system(self, path_queue_for_figure: Queue):
+        """
+        调用acs_time 和 acs_vehicle进行路径的探索
+        :param path_queue_for_figure:
+        :return:
+        """
         # 在这里需要两个队列，time_what_to_do、vehicle_what_to_do， 用来告诉acs_time、acs_vehicle这两个线程，当前的best path是什么，或者让他们停止计算
         global_path_to_acs_time = Queue()
         global_path_to_acs_vehicle = Queue()
@@ -353,7 +390,9 @@ class MultipleAntColonySystem:
                     start_time = time.time()
 
                     print('-' * 50)
-                    print('[macs]: vehicle num of found path (%d) better than best path\'s (%d)' % (found_path_used_vehicle_num, best_vehicle_num))
+                    print('[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
+                          % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
+
                     print('-' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
