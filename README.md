@@ -3,11 +3,9 @@ A **python** implementation of a **ant colony optimization** based solution to *
 
 ## Example
 
-```
 <p align="center">
-	<img src="/image/c101-example.gif"></a>
+	<img src="/image/c101-example.gif">
 </p>
-```
 
 ## Reference
 1. `Gambardella L M, Taillard É, Agazzi G. Macs-vrptw: A multiple colony system for vehicle routing problems with time windows[C]//New ideas in optimization. 1999.`
