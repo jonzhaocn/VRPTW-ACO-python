@@ -230,45 +230,46 @@ class Ant:
         # 将self.travel_path分成多段，每段以depot开始，以depot结束，称为route
         for i in range(1, len(depot_ind)):
             for j in range(i+1, len(depot_ind)):
-                if stop_event.is_set():
-                    # print('[local_search_procedure]: receive stop event')
-                    return
+                for k in range(10):
+                    if stop_event.is_set():
+                        # print('[local_search_procedure]: receive stop event')
+                        return
 
-                # 随机在两段route，各随机选择一段customer id，交换这两段customer id
-                start_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
-                end_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
-                if end_a < start_a:
-                    start_a, end_a = end_a, start_a
+                    # 随机在两段route，各随机选择一段customer id，交换这两段customer id
+                    start_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
+                    end_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
+                    if end_a < start_a:
+                        start_a, end_a = end_a, start_a
 
-                start_b = random.randint(depot_ind[j-1]+1, depot_ind[j]-1)
-                end_b = random.randint(depot_ind[j - 1] + 1, depot_ind[j] - 1)
-                if end_b < start_b:
-                    start_b, end_b = end_b, start_b
+                    start_b = random.randint(depot_ind[j-1]+1, depot_ind[j]-1)
+                    end_b = random.randint(depot_ind[j - 1] + 1, depot_ind[j] - 1)
+                    if end_b < start_b:
+                        start_b, end_b = end_b, start_b
 
-                path = []
-                path.extend(self.travel_path[:start_a])
-                path.extend(self.travel_path[start_b:end_b+1])
-                path.extend(self.travel_path[end_a:start_b])
-                path.extend(self.travel_path[start_a:end_a])
-                path.extend(self.travel_path[end_b+1:])
+                    path = []
+                    path.extend(self.travel_path[:start_a])
+                    path.extend(self.travel_path[start_b:end_b+1])
+                    path.extend(self.travel_path[end_a:start_b])
+                    path.extend(self.travel_path[start_a:end_a])
+                    path.extend(self.travel_path[end_b+1:])
 
-                if len(path) != len(self.travel_path):
-                    raise RuntimeError('error')
+                    if len(path) != len(self.travel_path):
+                        raise RuntimeError('error')
 
-                # 判断新生成的path是否是可行的
-                check_ant = Ant(self.graph, path[0])
-                for ind in path[1:]:
-                    if check_ant.check_condition(ind):
-                        check_ant.move_to_next_index(ind)
+                    # 判断新生成的path是否是可行的
+                    check_ant = Ant(self.graph, path[0])
+                    for ind in path[1:]:
+                        if check_ant.check_condition(ind):
+                            check_ant.move_to_next_index(ind)
+                        else:
+                            break
+                    # 如果新生成的path是可行的
+                    if check_ant.index_to_visit_empty() and check_ant.total_travel_distance < self.total_travel_distance:
+                        # print('success to search')
+                        new_path_travel_distance.append(check_ant.total_travel_distance)
+                        new_path.append(path)
                     else:
-                        break
-                # 如果新生成的path是可行的
-                if check_ant.index_to_visit_empty() and check_ant.total_travel_distance < self.total_travel_distance:
-                    # print('success to search')
-                    new_path_travel_distance.append(check_ant.total_travel_distance)
-                    new_path.append(path)
-                else:
-                    path.clear()
+                        path.clear()
 
         # 找出新生成的path中，路程最小的
         if len(new_path_travel_distance) > 0:

@@ -59,10 +59,9 @@ class VrptwAcoFigure:
                 for line in remove_obj:
                     self.figure_ax.lines.remove(line)
                 remove_obj.clear()
-                plt.pause(1)
 
                 # 重新绘制line
-                self.figure_ax.set_title('current path travel distance: %f' % distance)
+                self.figure_ax.set_title('travel distance: %0.2f, number of vehicles: %d ' % (distance, used_vehicle_num))
                 self._draw_line(path)
             plt.pause(1)
 

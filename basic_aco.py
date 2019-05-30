@@ -5,6 +5,7 @@ from vrptw_base import VrptwGraph, PathMessage
 from ant import Ant
 from threading import Thread
 from queue import Queue
+import time
 
 
 class BasicACO:
@@ -51,6 +52,8 @@ class BasicACO:
         最基本的蚁群算法
         :return:
         """
+        start_time_total = time.time()
+
         # 最大迭代次数
         start_iteration = 0
         for iter in range(self.max_iter):
@@ -81,32 +84,32 @@ class BasicACO:
 
             # 记录当前的最佳路径
             best_index = np.argmin(paths_distance)
-            if self.best_path is None:
+            if self.best_path is None or paths_distance[best_index] < self.best_path_distance:
                 self.best_path = ants[int(best_index)].travel_path
                 self.best_path_distance = paths_distance[best_index]
+                self.best_vehicle_num = self.best_path.count(0) - 1
                 start_iteration = iter
 
                 # 图形化展示
                 if self.whether_or_not_to_show_figure:
                     path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
 
-            elif paths_distance[best_index] < self.best_path_distance:
-                self.best_path = ants[int(best_index)].travel_path
-                self.best_path_distance = paths_distance[best_index]
-                start_iteration = iter
-                # 图形化展示
-                if self.whether_or_not_to_show_figure:
-                    path_queue_for_figure.put(PathMessage(self.best_path, self.best_path_distance))
+                print('\n')
+                print('[iteration %d]: find a improved path, its distance is %f' % (iter, self.best_path_distance))
+                print('it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
 
-            print('[iteration %d]: best distance %f' % (iter, self.best_path_distance))
             # 更新信息素表
             self.graph.global_update_pheromone(self.best_path, self.best_path_distance)
 
             given_iteration = 100
             if iter - start_iteration > given_iteration:
-                print('iteration is up: can not find better solution in %d iteration' % given_iteration)
-                print('exit.')
+                print('\n')
+                print('iteration exit: can not find better solution in %d iteration' % given_iteration)
                 break
+
+        print('\n')
+        print('final best path distance is %f, number of vehicle is %d' % (self.best_path_distance, self.best_vehicle_num))
+        print('it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
 
     def select_next_index(self, ant):
         """

@@ -377,6 +377,8 @@ class MultipleAntColonySystem:
         :param path_queue_for_figure:
         :return:
         """
+        start_time_total = time.time()
+
         # 在这里需要两个队列，time_what_to_do、vehicle_what_to_do， 用来告诉acs_time、acs_vehicle这两个线程，当前的best path是什么，或者让他们停止计算
         global_path_to_acs_time = Queue()
         global_path_to_acs_vehicle = Queue()
@@ -389,7 +391,7 @@ class MultipleAntColonySystem:
 
         while True:
             print('[multiple_ant_colony_system]: new iteration')
-            start_time = time.time()
+            start_time_found_improved_solution = time.time()
 
             # 当前best path的信息，放在queue中以通知acs_time和acs_vehicle当前的best_path是什么
             global_path_to_acs_vehicle.put(PathMessage(self.best_path, self.best_path_distance))
@@ -419,10 +421,12 @@ class MultipleAntColonySystem:
             while acs_vehicle_thread.is_alive() and acs_time_thread.is_alive():
 
                 # 如果在指定时间内没有搜索到更好的结果，则退出程序
-                end_time = time.time()
-                if end_time - start_time > 60 * 5:
+                if time.time() - start_time_found_improved_solution > 60 * 5:
                     stop_event.set()
+                    print(' * ' * 50)
                     print('time is up: cannot find a better solution in given time')
+                    print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
+                    print(' * ' * 50)
                     return
 
                 if path_found_queue.empty():
@@ -436,11 +440,12 @@ class MultipleAntColonySystem:
                 if found_path_distance < self.best_path_distance:
 
                     # 搜索到更好的结果，更新start_time
-                    start_time = time.time()
+                    start_time_found_improved_solution = time.time()
 
-                    print('-' * 50)
+                    print(' * ' * 50)
                     print('[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
-                    print('-' * 50)
+                    print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
+                    print(' * ' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
@@ -458,13 +463,13 @@ class MultipleAntColonySystem:
                 if found_path_used_vehicle_num < best_vehicle_num:
 
                     # 搜索到更好的结果，更新start_time
-                    start_time = time.time()
+                    start_time_found_improved_solution = time.time()
 
-                    print('-' * 50)
+                    print(' * ' * 50)
                     print('[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
                           % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
-
-                    print('-' * 50)
+                    print('it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
+                    print(' * ' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
