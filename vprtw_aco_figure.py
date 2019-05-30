@@ -72,4 +72,4 @@ class VrptwAcoFigure:
             x_list = [self.nodes[path[i - 1]].x, self.nodes[path[i]].x]
             y_list = [self.nodes[path[i - 1]].y, self.nodes[path[i]].y]
             self.figure_ax.plot(x_list, y_list, color=self._line_color, linewidth=1.5, label='line')
-            plt.pause(0.05)
+            plt.pause(0.02)

@@ -166,9 +166,14 @@ class VrptwGraph:
 
 class PathMessage:
     def __init__(self, path, distance):
-        self.path = copy.deepcopy(path)
-        self.distance = copy.deepcopy(distance)
-        self.used_vehicle_num = self.path.count(0) - 1
+        if path is not None:
+            self.path = copy.deepcopy(path)
+            self.distance = copy.deepcopy(distance)
+            self.used_vehicle_num = self.path.count(0) - 1
+        else:
+            self.path = None
+            self.distance = None
+            self.used_vehicle_num = None
 
     def get_path_info(self):
         return self.path, self.distance, self.used_vehicle_num

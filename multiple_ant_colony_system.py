@@ -53,6 +53,66 @@ class MultipleAntColonySystem:
                 return index_to_visit[ind]
 
     @staticmethod
+    def local_search_procedure_for_global_path(graph: VrptwGraph, global_best_path: list, global_best_distance: float, stop_event: Event):
+        """
+        对global_path使用cross进行局部搜索
+        :return:
+        """
+        result_path = None
+        result_distance = None
+
+        new_path_travel_distance = []
+        new_path = []
+        for i in range(1, len(global_best_path)):
+
+            if graph.nodes[global_best_path[i]].is_depot:
+                continue
+
+            for j in range(i+1, len(global_best_path)):
+
+                if graph.nodes[global_best_path[j]].is_depot:
+                    continue
+
+                if stop_event.is_set():
+                    # print('[local_search_procedure_for_global_path]: receive stop event')
+                    return result_path, result_distance
+
+                path = copy.deepcopy(global_best_path)
+                path[i], path[j] = path[j], path[i]
+
+                # 判断新生成的path是否是可行的
+                check_ant = Ant(graph, path[0])
+                for ind in path[1:]:
+                    if check_ant.check_condition(ind):
+                        check_ant.move_to_next_index(ind)
+                    else:
+                        break
+
+                # 如果新生成的path是可行的
+                if check_ant.index_to_visit_empty() and check_ant.total_travel_distance < global_best_distance:
+                    # print('success to search')
+                    new_path_travel_distance.append(check_ant.total_travel_distance)
+                    new_path.append(path)
+                else:
+                    path.clear()
+
+        # 找出新生成的path中，路程最小的
+        if len(new_path_travel_distance) > 0:
+            new_path_travel_distance = np.array(new_path_travel_distance)
+            min_distance_ind = np.argmin(new_path_travel_distance)
+
+            result_path = copy.deepcopy(new_path[int(min_distance_ind)])
+            result_distance = new_path_travel_distance[int(min_distance_ind)]
+
+        for i in range(len(new_path)):
+            new_path[i].clear()
+        new_path.clear()
+        del new_path_travel_distance
+
+        # print('[]: local search for global path finished')
+        return result_path, result_distance
+
+    @staticmethod
     def new_active_ant(ant: Ant, vehicle_num: int, local_search: bool, IN: np.numarray, q0: float, beta: int, stop_event: Event):
         """
         按照指定的vehicle_num在地图上进行探索，所使用的vehicle num不能多于指定的数量，acs_time和acs_vehicle都会使用到这个方法
@@ -158,6 +218,7 @@ class MultipleAntColonySystem:
         ants_thread = []
         ants = []
         while True:
+            print('[acs_time]: new iteration')
 
             if stop_event.is_set():
                 print('[acs_time]: receive stop event')
@@ -192,8 +253,16 @@ class MultipleAntColonySystem:
 
                 # 如果比全局的路径要好，则要将该路径发送到macs中
                 if ant.index_to_visit_empty() and ant.total_travel_distance < global_best_distance:
-                    print('[acs_time]: found a improved feasible path, send path info to macs')
+                    print('[acs_time]: ant found a improved feasible path, send path info to macs')
                     path_found_queue.put(PathMessage(ant.travel_path, ant.total_travel_distance))
+
+            # 为global path进行局部搜索
+            result_path, result_distance = MultipleAntColonySystem.local_search_procedure_for_global_path(new_graph, global_best_path, global_best_distance, stop_event)
+
+            if result_distance is not None:
+                print('[acs_time]: local_search_procedure_for_global_path found  a improved feasible path,'
+                      ' send path info to macs')
+                path_found_queue.put(PathMessage(result_path, result_distance))
 
             # 在这里执行信息素的全局更新
             new_graph.global_update_pheromone(global_best_path, global_best_distance)
@@ -231,6 +300,7 @@ class MultipleAntColonySystem:
         ants = []
         IN = np.zeros(new_graph.node_num)
         while True:
+            print('[acs_vehicle]: new iteration')
 
             if stop_event.is_set():
                 print('[acs_vehicle]: receive stop event')
@@ -318,6 +388,7 @@ class MultipleAntColonySystem:
         self.best_path, self.best_path_distance, self.best_vehicle_num = self.graph.nearest_neighbor_heuristic()
 
         while True:
+            print('[multiple_ant_colony_system]: new iteration')
             start_time = time.time()
 
             # 当前best path的信息，放在queue中以通知acs_time和acs_vehicle当前的best_path是什么
@@ -403,4 +474,5 @@ class MultipleAntColonySystem:
 
                     # 停止acs_time 和 acs_vehicle 两个线程
                     print('[macs]: send stop info to acs_time and acs_vehicle')
+                    # 通知acs_vehicle和acs_time两个线程，当前找到的best_path和best_path_distance
                     stop_event.set()

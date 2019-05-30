@@ -230,7 +230,6 @@ class Ant:
         # 将self.travel_path分成多段，每段以depot开始，以depot结束，称为route
         for i in range(1, len(depot_ind)):
             for j in range(i+1, len(depot_ind)):
-
                 if stop_event.is_set():
                     # print('[local_search_procedure]: receive stop event')
                     return
@@ -264,17 +263,24 @@ class Ant:
                     else:
                         break
                 # 如果新生成的path是可行的
-                if check_ant.index_to_visit_empty():
+                if check_ant.index_to_visit_empty() and check_ant.total_travel_distance < self.total_travel_distance:
                     # print('success to search')
                     new_path_travel_distance.append(check_ant.total_travel_distance)
                     new_path.append(path)
+                else:
+                    path.clear()
 
         # 找出新生成的path中，路程最小的
         if len(new_path_travel_distance) > 0:
             new_path_travel_distance = np.array(new_path_travel_distance)
             min_distance_ind = np.argmin(new_path_travel_distance)
-            min_distance = new_path_travel_distance[min_distance_ind]
 
-            if min_distance < self.total_travel_distance:
-                self.travel_path = new_path[int(min_distance_ind)]
-                self.index_to_visit.clear()
+            self.travel_path = copy.deepcopy(new_path[int(min_distance_ind)])
+            self.index_to_visit.clear()
+
+        for i in range(len(new_path)):
+            new_path[i].clear()
+        new_path.clear()
+        del new_path_travel_distance
+
+        # print('[new_active_ant]: local search finished')
