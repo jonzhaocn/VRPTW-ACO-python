@@ -423,10 +423,10 @@ class MultipleAntColonySystem:
                 # 如果在指定时间内没有搜索到更好的结果，则退出程序
                 if time.time() - start_time_found_improved_solution > 60 * 5:
                     stop_event.set()
-                    print(' * ' * 50)
+                    print('*' * 50)
                     print('time is up: cannot find a better solution in given time')
                     print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
-                    print(' * ' * 50)
+                    print('*' * 50)
                     return
 
                 if path_found_queue.empty():
@@ -442,10 +442,10 @@ class MultipleAntColonySystem:
                     # 搜索到更好的结果，更新start_time
                     start_time_found_improved_solution = time.time()
 
-                    print(' * ' * 50)
+                    print('*' * 50)
                     print('[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
                     print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
-                    print(' * ' * 50)
+                    print('*' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
@@ -465,11 +465,11 @@ class MultipleAntColonySystem:
                     # 搜索到更好的结果，更新start_time
                     start_time_found_improved_solution = time.time()
 
-                    print(' * ' * 50)
+                    print('*' * 50)
                     print('[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
                           % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
                     print('it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
-                    print(' * ' * 50)
+                    print('*' * 50)
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
