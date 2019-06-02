@@ -36,9 +36,6 @@ class Ant:
             self.vehicle_load = 0
             self.vehicle_travel_time = 0
 
-            # remove duplicated_depot
-            if next_index in self.index_to_visit:
-                self.index_to_visit.remove(next_index)
         else:
             # 更新车辆负载、行驶距离、时间
             self.vehicle_load += self.graph.nodes[next_index].demand
@@ -240,9 +237,11 @@ class Ant:
 
                 position = []
                 for start_a in range(depot_ind[i-1]+1, depot_ind[i]):
-                    for end_a in range(start_a, min(depot_ind[i], start_a+7)):
+                    for end_a in range(start_a, min(depot_ind[i], start_a+6)):
                         for start_b in range(depot_ind[j-1]+1, depot_ind[j]):
-                            for end_b in range(start_b, min(depot_ind[j], start_b+7)):
+                            for end_b in range(start_b, min(depot_ind[j], start_b+6)):
+                                if start_a == end_a and start_b == end_b:
+                                    continue
                                 position.append([start_a, end_a, start_b, end_b])
 
                 for posi in position:
@@ -254,18 +253,11 @@ class Ant:
                     path.extend(self.travel_path[start_a:end_a])
                     path.extend(self.travel_path[end_b+1:])
 
-                    for k in range(1, len(path)):
-                        if path[i-1] == 0 and path[i] == 0:
-                            path.remove(i)
-                            break
+                    depot_before_start_a = depot_ind[i-1]
 
-                    depot_before_start_a = start_a
-                    while not self.graph.nodes[path[depot_before_start_a]].is_depot:
-                        depot_before_start_a -= 1
-
-                    depot_before_start_b = start_b
-                    while not self.graph.nodes[path[depot_before_start_b]].is_depot:
-                        depot_before_start_b -= 1
+                    depot_before_start_b = depot_ind[j-1] + (end_b-start_b) - (end_a-start_a) + 1
+                    if not self.graph.nodes[path[depot_before_start_b]].is_depot:
+                        raise RuntimeError('error')
 
                     # 判断发生改变的route a是否是feasible的
                     success_route_a = False
@@ -278,6 +270,7 @@ class Ant:
                                 break
                         else:
                             break
+
                     check_ant.clear()
                     del check_ant
 
@@ -305,7 +298,12 @@ class Ant:
                     else:
                         path.clear()
 
-        # 找出新生成的path中，路程最小的
+        # 判断new_path中是否存在连个连续的depot
+        for i in range(1, len(new_path)):
+            if self.graph.nodes[new_path[i]].is_depot and self.graph.nodes[new_path[i-1]].is_depot:
+                new_path.pop(i)
+                break
+
         self.travel_path = new_path
         self.total_travel_distance = new_path_travel_distance
         print('[local_search_procedure]: local search finished')

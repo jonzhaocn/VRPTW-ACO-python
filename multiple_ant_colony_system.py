@@ -88,25 +88,23 @@ class MultipleAntColonySystem:
                 continue
 
             # 开始计算满足限制的下一个结点，选择各个结点的概率
-            index_num = len(next_index_meet_constrains)
-            ready_time = np.zeros(index_num)
-            due_time = np.zeros(index_num)
+            length = len(next_index_meet_constrains)
+            ready_time = np.zeros(length)
+            due_time = np.zeros(length)
 
-            for i in range(index_num):
+            for i in range(length):
                 ready_time[i] = ant.graph.nodes[next_index_meet_constrains[i]].ready_time
                 due_time[i] = ant.graph.nodes[next_index_meet_constrains[i]].due_time
 
-            delivery_time = np.array([max(i, j) for i, j in zip(ant.vehicle_travel_time + ant.graph.node_dist_mat[ant.current_index][next_index_meet_constrains], ready_time)])
-
+            delivery_time = np.maximum(ant.vehicle_travel_time + ant.graph.node_dist_mat[ant.current_index][next_index_meet_constrains], ready_time)
             delta_time = delivery_time - ant.vehicle_travel_time
             distance = delta_time * (due_time - ant.vehicle_travel_time)
 
-            distance = np.array([max(1.0, j) for j in distance-IN[next_index_meet_constrains]])
+            distance = np.maximum(1.0, distance-IN[next_index_meet_constrains])
             closeness = 1/distance
 
             transition_prob = ant.graph.pheromone_mat[ant.current_index][next_index_meet_constrains] * \
                               np.power(closeness, beta)
-
             transition_prob = transition_prob / np.sum(transition_prob)
 
             # 按照概率直接选择closeness最大的结点
@@ -168,7 +166,6 @@ class MultipleAntColonySystem:
                 ant = Ant(new_graph, 0)
                 thread = ants_pool.submit(MultipleAntColonySystem.new_active_ant, ant, vehicle_num, True,
                                           np.zeros(new_graph.node_num), q0, beta, stop_event)
-
                 ants_thread.append(thread)
                 ants.append(ant)
 
@@ -176,20 +173,20 @@ class MultipleAntColonySystem:
             for thread in ants_thread:
                 thread.result()
 
-            # 获取当前的best path
-            if not global_path_queue.empty():
-                info = global_path_queue.get()
-                while not global_path_queue.empty():
-                    info = global_path_queue.get()
-                print('[acs_time]: receive global path info')
-                global_best_path, global_best_distance, global_used_vehicle_num = info.get_path_info()
-
             # 判断蚂蚁找出来的路径是否是feasible的，并且比全局的路径要好
             for ant in ants:
 
                 if stop_event.is_set():
                     print('[acs_time]: receive stop event')
                     return
+
+                # 获取当前的best path
+                if not global_path_queue.empty():
+                    info = global_path_queue.get()
+                    while not global_path_queue.empty():
+                        info = global_path_queue.get()
+                    print('[acs_time]: receive global path info')
+                    global_best_path, global_best_distance, global_used_vehicle_num = info.get_path_info()
 
                 # 如果比全局的路径要好，则要将该路径发送到macs中
                 if ant.index_to_visit_empty() and ant.total_travel_distance < global_best_distance:
@@ -262,13 +259,12 @@ class MultipleAntColonySystem:
                     print('[acs_vehicle]: receive stop event')
                     return
 
-                index_to_visit = copy.deepcopy(ant.index_to_visit)
-                IN[index_to_visit] = IN[index_to_visit]+1
+                IN[ant.index_to_visit] = IN[ant.index_to_visit]+1
 
                 # 蚂蚁找出来的路径与current_path进行比较，是否能使用vehicle_num辆车访问到更多的结点
-                if len(index_to_visit) < len(current_index_to_visit):
+                if len(ant.index_to_visit) < len(current_index_to_visit):
                     current_path = copy.deepcopy(ant.travel_path)
-                    current_index_to_visit = index_to_visit
+                    current_index_to_visit = copy.deepcopy(ant.index_to_visit)
                     current_path_distance = ant.total_travel_distance
                     # 并且将IN设置为0
                     IN = np.zeros(new_graph.node_num)
@@ -380,6 +376,14 @@ class MultipleAntColonySystem:
                 path_info = path_found_queue.get()
                 print('[macs]: receive found path info')
                 found_path, found_path_distance, found_path_used_vehicle_num = path_info.get_path_info()
+                while not path_found_queue.empty():
+                    path, distance, vehicle_num = path_found_queue.get().get_path_info()
+
+                    if distance < found_path_distance:
+                        found_path, found_path_distance, found_path_used_vehicle_num = path, distance, vehicle_num
+
+                    if vehicle_num < found_path_used_vehicle_num:
+                        found_path, found_path_distance, found_path_used_vehicle_num = path, distance, vehicle_num
 
                 # 如果找到的路径（which is feasible）的距离更短，则更新当前的最佳path的信息
                 if found_path_distance < self.best_path_distance:
@@ -409,7 +413,6 @@ class MultipleAntColonySystem:
 
                     # 搜索到更好的结果，更新start_time
                     start_time_found_improved_solution = time.time()
-
                     print('*' * 50)
                     print('[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
                           % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
