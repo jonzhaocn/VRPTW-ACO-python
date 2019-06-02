@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-from queue import Queue
+from multiprocessing import Queue as MPQueue
 
 
 class VrptwAcoFigure:
-    def __init__(self, nodes: list, path_queue: Queue):
+    def __init__(self, nodes: list, path_queue: MPQueue):
         """
         matplotlib绘图计算需要放在主线程，寻找路径的工作建议另外开一个线程，
         当寻找路径的线程找到一个新的path的时候，将path放在path_queue中，图形绘制线程就会自动进行绘制
@@ -71,4 +71,4 @@ class VrptwAcoFigure:
             x_list = [self.nodes[path[i - 1]].x, self.nodes[path[i]].x]
             y_list = [self.nodes[path[i - 1]].y, self.nodes[path[i]].y]
             self.figure_ax.plot(x_list, y_list, color=self._line_color, linewidth=1.5, label='line')
-            plt.pause(0.02)
+            plt.pause(0.2)

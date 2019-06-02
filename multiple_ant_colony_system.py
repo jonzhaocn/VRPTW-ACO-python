@@ -8,10 +8,12 @@ from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import time
+from multiprocessing import Process
+from multiprocessing import Queue as MPQueue
 
 
 class MultipleAntColonySystem:
-    def __init__(self, graph: VrptwGraph, ants_num=10, beta=2, q0=0.1, whether_or_not_to_show_figure=True):
+    def __init__(self, graph: VrptwGraph, ants_num=10, beta=1, q0=0.1, whether_or_not_to_show_figure=True):
         super()
         # graph 结点的位置、服务时间信息
         self.graph = graph
@@ -173,6 +175,8 @@ class MultipleAntColonySystem:
             for thread in ants_thread:
                 thread.result()
 
+            ant_best_travel_distance = None
+            ant_best_path = None
             # 判断蚂蚁找出来的路径是否是feasible的，并且比全局的路径要好
             for ant in ants:
 
@@ -188,13 +192,18 @@ class MultipleAntColonySystem:
                     print('[acs_time]: receive global path info')
                     global_best_path, global_best_distance, global_used_vehicle_num = info.get_path_info()
 
-                # 如果比全局的路径要好，则要将该路径发送到macs中
-                if ant.index_to_visit_empty() and ant.total_travel_distance < global_best_distance:
-                    print('[acs_time]: ant found a improved feasible path, send path info to macs')
-                    path_found_queue.put(PathMessage(ant.travel_path, ant.total_travel_distance))
+                # 路径蚂蚁计算得到的最短路径
+                if ant.index_to_visit_empty() and (ant_best_travel_distance is None or ant.total_travel_distance < ant_best_travel_distance):
+                    ant_best_travel_distance = ant.total_travel_distance
+                    ant_best_path = ant.travel_path
 
             # 在这里执行信息素的全局更新
             new_graph.global_update_pheromone(global_best_path, global_best_distance)
+
+            # 向macs发送计算得到的当前的最佳路径
+            if ant_best_travel_distance is not None and ant_best_travel_distance < global_best_distance:
+                print('[acs_time]: local search for global_path found a improved feasible path, send path info to macs')
+                path_found_queue.put(PathMessage(ant_best_path, ant_best_travel_distance))
 
             ants_thread.clear()
             for ant in ants:
@@ -297,8 +306,8 @@ class MultipleAntColonySystem:
         开启另外的线程来跑multiple_ant_colony_system， 使用主线程来绘图
         :return:
         """
-        path_queue_for_figure = Queue()
-        multiple_ant_colony_system_thread = Thread(target=self._multiple_ant_colony_system, args=(path_queue_for_figure,))
+        path_queue_for_figure = MPQueue()
+        multiple_ant_colony_system_thread = Process(target=self._multiple_ant_colony_system, args=(path_queue_for_figure,))
         multiple_ant_colony_system_thread.start()
 
         # 是否要展示figure
@@ -311,7 +320,7 @@ class MultipleAntColonySystem:
         if self.whether_or_not_to_show_figure:
             path_queue_for_figure.put(PathMessage(None, None))
 
-    def _multiple_ant_colony_system(self, path_queue_for_figure: Queue):
+    def _multiple_ant_colony_system(self, path_queue_for_figure: MPQueue):
         """
         调用acs_time 和 acs_vehicle进行路径的探索
         :param path_queue_for_figure:
