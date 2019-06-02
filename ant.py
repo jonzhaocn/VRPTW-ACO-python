@@ -1,6 +1,5 @@
 import numpy as np
 import copy
-import random
 from vrptw_base import VrptwGraph
 from threading import Event
 
@@ -19,6 +18,10 @@ class Ant:
         self.index_to_visit.remove(start_index)
 
         self.total_travel_distance = 0
+
+    def clear(self):
+        self.travel_path.clear()
+        self.index_to_visit.clear()
 
     def move_to_next_index(self, next_index):
         # 更新蚂蚁路径
@@ -225,27 +228,25 @@ class Ant:
             if self.graph.nodes[self.travel_path[ind]].is_depot:
                 depot_ind.append(ind)
 
-        new_path_travel_distance = []
-        new_path = []
+        new_path_travel_distance = self.total_travel_distance
+        new_path = self.travel_path
+
         # 将self.travel_path分成多段，每段以depot开始，以depot结束，称为route
         for i in range(1, len(depot_ind)):
             for j in range(i+1, len(depot_ind)):
-                for k in range(10):
-                    if stop_event.is_set():
-                        # print('[local_search_procedure]: receive stop event')
-                        return
 
-                    # 随机在两段route，各随机选择一段customer id，交换这两段customer id
-                    start_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
-                    end_a = random.randint(depot_ind[i-1]+1, depot_ind[i]-1)
-                    if end_a < start_a:
-                        start_a, end_a = end_a, start_a
+                if stop_event.is_set():
+                    return
 
-                    start_b = random.randint(depot_ind[j-1]+1, depot_ind[j]-1)
-                    end_b = random.randint(depot_ind[j - 1] + 1, depot_ind[j] - 1)
-                    if end_b < start_b:
-                        start_b, end_b = end_b, start_b
+                position = []
+                for start_a in range(depot_ind[i-1]+1, depot_ind[i]):
+                    for end_a in range(start_a, min(depot_ind[i], start_a+7)):
+                        for start_b in range(depot_ind[j-1]+1, depot_ind[j]):
+                            for end_b in range(start_b, min(depot_ind[j], start_b+7)):
+                                position.append([start_a, end_a, start_b, end_b])
 
+                for posi in position:
+                    start_a, end_a, start_b, end_b = posi
                     path = []
                     path.extend(self.travel_path[:start_a])
                     path.extend(self.travel_path[start_b:end_b+1])
@@ -253,35 +254,58 @@ class Ant:
                     path.extend(self.travel_path[start_a:end_a])
                     path.extend(self.travel_path[end_b+1:])
 
-                    if len(path) != len(self.travel_path):
-                        raise RuntimeError('error')
+                    for k in range(1, len(path)):
+                        if path[i-1] == 0 and path[i] == 0:
+                            path.remove(i)
+                            break
 
-                    # 判断新生成的path是否是可行的
-                    check_ant = Ant(self.graph, path[0])
-                    for ind in path[1:]:
+                    depot_before_start_a = start_a
+                    while not self.graph.nodes[path[depot_before_start_a]].is_depot:
+                        depot_before_start_a -= 1
+
+                    depot_before_start_b = start_b
+                    while not self.graph.nodes[path[depot_before_start_b]].is_depot:
+                        depot_before_start_b -= 1
+
+                    # 判断发生改变的route a是否是feasible的
+                    success_route_a = False
+                    check_ant = Ant(self.graph, path[depot_before_start_a])
+                    for ind in path[depot_before_start_a+1:]:
                         if check_ant.check_condition(ind):
                             check_ant.move_to_next_index(ind)
+                            if self.graph.nodes[ind].is_depot:
+                                success_route_a = True
+                                break
                         else:
                             break
-                    # 如果新生成的path是可行的
-                    if check_ant.index_to_visit_empty() and check_ant.total_travel_distance < self.total_travel_distance:
-                        # print('success to search')
-                        new_path_travel_distance.append(check_ant.total_travel_distance)
-                        new_path.append(path)
+                    check_ant.clear()
+                    del check_ant
+
+                    # 判断发生改变的route b是否是feasible的
+                    success_route_b = False
+                    check_ant = Ant(self.graph, path[depot_before_start_b])
+                    for ind in path[depot_before_start_b + 1:]:
+                        if check_ant.check_condition(ind):
+                            check_ant.move_to_next_index(ind)
+                            if self.graph.nodes[ind].is_depot:
+                                success_route_b = True
+                                break
+                        else:
+                            break
+                    check_ant.clear()
+                    del check_ant
+
+                    if success_route_a and success_route_b:
+                        total_travel_distance = self.cal_total_travel_distance(path)
+                        if total_travel_distance < new_path_travel_distance:
+                            # print('success to search')
+                            new_path_travel_distance = total_travel_distance
+                            new_path = path
+                            print('[local_search_procedure]: found a path in local search, its distance is %f' % new_path_travel_distance)
                     else:
                         path.clear()
 
         # 找出新生成的path中，路程最小的
-        if len(new_path_travel_distance) > 0:
-            new_path_travel_distance = np.array(new_path_travel_distance)
-            min_distance_ind = np.argmin(new_path_travel_distance)
-
-            self.travel_path = copy.deepcopy(new_path[int(min_distance_ind)])
-            self.index_to_visit.clear()
-
-        for i in range(len(new_path)):
-            new_path[i].clear()
-        new_path.clear()
-        del new_path_travel_distance
-
-        # print('[new_active_ant]: local search finished')
+        self.travel_path = new_path
+        self.total_travel_distance = new_path_travel_distance
+        print('[local_search_procedure]: local search finished')
