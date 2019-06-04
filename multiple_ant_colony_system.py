@@ -388,8 +388,9 @@ class MultipleAntColonySystem:
                     if self.whether_or_not_to_show_figure:
                         path_queue_for_figure.put(PathMessage(None, None))
 
-                    file_to_write.flush()
-                    file_to_write.close()
+                    if file_to_write is not None:
+                        file_to_write.flush()
+                        file_to_write.close()
                     return
 
                 if path_found_queue.empty():
@@ -417,7 +418,8 @@ class MultipleAntColonySystem:
                     self.print_and_write_in_file(file_to_write, '[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
                     self.print_and_write_in_file(file_to_write, 'it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
                     self.print_and_write_in_file(file_to_write, '*' * 50)
-                    file_to_write.flush()
+                    if file_to_write is not None:
+                        file_to_write.flush()
 
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
@@ -442,7 +444,8 @@ class MultipleAntColonySystem:
                           % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
                     self.print_and_write_in_file(file_to_write, 'it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
                     self.print_and_write_in_file(file_to_write, '*' * 50)
-                    file_to_write.flush()
+                    if file_to_write is not None:
+                        file_to_write.flush()
 
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num

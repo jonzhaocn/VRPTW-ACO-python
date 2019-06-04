@@ -122,8 +122,8 @@ class Ant:
         :param node_id:
         :return:
         """
-        feasible_insert_index = []
-        feasible_distance = []
+        best_insert_index = None
+        best_distance = None
 
         for insert_index in range(len(self.travel_path)):
 
@@ -134,11 +134,13 @@ class Ant:
             if self.graph.nodes[self.travel_path[insert_index]].is_depot:
                 continue
 
+            # 找出insert_index的前面的最近的depot
             front_depot_index = insert_index
             while front_depot_index >= 0 and not self.graph.nodes[self.travel_path[front_depot_index]].is_depot:
                 front_depot_index -= 1
             front_depot_index = max(front_depot_index, 0)
 
+            # check_ant从front_depot_index出发
             check_ant = Ant(self.graph, self.travel_path[front_depot_index])
 
             # 让check_ant 走过 path中下标从front_depot_index开始到insert_index-1的点
@@ -159,29 +161,26 @@ class Ant:
                     return
 
                 if check_ant.check_condition(next_ind):
-
                     check_ant.move_to_next_index(next_ind)
 
                     # 如果回到了depot
                     if self.graph.nodes[next_ind].is_depot:
-                        feasible_insert_index.append(insert_index)
-                        # 计算距离
-                        path = copy.deepcopy(self.travel_path)
-                        path.insert(insert_index, node_id)
-                        feasible_distance.append(self.cal_total_travel_distance(path))
+                        temp_front_index = self.travel_path[insert_index-1]
+                        temp_back_index = self.travel_path[insert_index]
+
+                        check_ant_distance = self.total_travel_distance - self.graph.node_dist_mat[temp_front_index][temp_back_index] + \
+                                             self.graph.node_dist_mat[temp_front_index][node_id] + self.graph.node_dist_mat[node_id][temp_back_index]
+
+                        if best_distance is None or check_ant_distance < best_distance:
+                            best_distance = check_ant_distance
+                            best_insert_index = insert_index
                         break
 
                 # 如果不可以回到depot，则返回上一层
                 else:
                     break
 
-        if len(feasible_distance) == 0:
-            return None
-        else:
-            feasible_distance = np.array(feasible_distance)
-            min_insert_ind = np.argmin(feasible_distance)
-            best_ind = feasible_insert_index[int(min_insert_ind)]
-            return best_ind
+        return best_insert_index
 
     def insertion_procedure(self, stop_even: Event):
         """
@@ -192,27 +191,38 @@ class Ant:
         if self.index_to_visit_empty():
             return
 
-        ind_to_visit = np.array(copy.deepcopy(self.index_to_visit))
+        success_to_insert = True
+        # 直到未访问的结点中没有一个结点可以插入成功
+        while success_to_insert:
 
-        demand = np.zeros(len(ind_to_visit))
-        for i in range(len(ind_to_visit)):
-            demand[i] = self.graph.nodes[i].demand
+            success_to_insert = False
+            # 获取未访问的结点
+            ind_to_visit = np.array(copy.deepcopy(self.index_to_visit))
 
-        sorted_ind = np.argsort(demand)
-        ind_to_visit = ind_to_visit[sorted_ind]
+            # 获取为访问客户点的demand，降序排序
+            demand = np.zeros(len(ind_to_visit))
+            for i, ind in zip(range(len(ind_to_visit)), ind_to_visit):
+                demand[i] = self.graph.nodes[ind].demand
 
-        for node_id in ind_to_visit:
+            arg_ind = np.argsort(demand)[::-1]
+            ind_to_visit = ind_to_visit[arg_ind]
 
-            if stop_even.is_set():
-                # print('[insertion_procedure]: receive stop event')
-                return
+            for node_id in ind_to_visit:
+                if stop_even.is_set():
+                    # print('[insertion_procedure]: receive stop event')
+                    return
 
-            best_insert_index = self.try_insert_on_path(node_id, stop_even)
-            if best_insert_index is not None:
-                self.travel_path.insert(best_insert_index, node_id)
-                self.index_to_visit.remove(node_id)
+                best_insert_index = self.try_insert_on_path(node_id, stop_even)
+                if best_insert_index is not None:
+                    self.travel_path.insert(best_insert_index, node_id)
+                    self.index_to_visit.remove(node_id)
+                    print('[insertion_procedure]: success to insert %d(node id) in %d(index)' % (node_id, best_insert_index))
+                    success_to_insert = True
 
+            del demand
+            del ind_to_visit
         self.total_travel_distance = self.cal_total_travel_distance(self.travel_path)
+        print('[insertion_procedure]: insertion finished')
 
     def local_search_procedure(self, stop_event: Event):
         """
