@@ -302,13 +302,13 @@ class MultipleAntColonySystem:
                 del ant
             ants.clear()
 
-    def run_multiple_ant_colony_system(self):
+    def run_multiple_ant_colony_system(self, file_to_write_path=None):
         """
         开启另外的线程来跑multiple_ant_colony_system， 使用主线程来绘图
         :return:
         """
         path_queue_for_figure = MPQueue()
-        multiple_ant_colony_system_thread = Process(target=self._multiple_ant_colony_system, args=(path_queue_for_figure,))
+        multiple_ant_colony_system_thread = Process(target=self._multiple_ant_colony_system, args=(path_queue_for_figure, file_to_write_path, ))
         multiple_ant_colony_system_thread.start()
 
         # 是否要展示figure
@@ -317,16 +317,17 @@ class MultipleAntColonySystem:
             figure.run()
         multiple_ant_colony_system_thread.join()
 
-        # 传入None作为结束标志
-        if self.whether_or_not_to_show_figure:
-            path_queue_for_figure.put(PathMessage(None, None))
-
-    def _multiple_ant_colony_system(self, path_queue_for_figure: MPQueue):
+    def _multiple_ant_colony_system(self, path_queue_for_figure: MPQueue, file_to_write_path=None):
         """
         调用acs_time 和 acs_vehicle进行路径的探索
         :param path_queue_for_figure:
         :return:
         """
+        if file_to_write_path is not None:
+            file_to_write = open(file_to_write_path, 'w')
+        else:
+            file_to_write = None
+
         start_time_total = time.time()
 
         # 在这里需要两个队列，time_what_to_do、vehicle_what_to_do， 用来告诉acs_time、acs_vehicle这两个线程，当前的best path是什么，或者让他们停止计算
@@ -375,13 +376,20 @@ class MultipleAntColonySystem:
                 given_time = 5
                 if time.time() - start_time_found_improved_solution > 60 * given_time:
                     stop_event.set()
-                    print('*' * 50)
-                    print('time is up: cannot find a better solution in given time(%d minutes)' % given_time)
-                    print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
-                    print('the best path have found is:')
-                    print(self.best_path)
-                    print('best path distance is %f, best vehicle_num is %d' % (self.best_path_distance, self.best_vehicle_num))
-                    print('*' * 50)
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+                    self.print_and_write_in_file(file_to_write, 'time is up: cannot find a better solution in given time(%d minutes)' % given_time)
+                    self.print_and_write_in_file(file_to_write, 'it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
+                    self.print_and_write_in_file(file_to_write, 'the best path have found is:')
+                    self.print_and_write_in_file(file_to_write, self.best_path)
+                    self.print_and_write_in_file(file_to_write, 'best path distance is %f, best vehicle_num is %d' % (self.best_path_distance, self.best_vehicle_num))
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+
+                    # 传入None作为结束标志
+                    if self.whether_or_not_to_show_figure:
+                        path_queue_for_figure.put(PathMessage(None, None))
+
+                    file_to_write.flush()
+                    file_to_write.close()
                     return
 
                 if path_found_queue.empty():
@@ -405,10 +413,12 @@ class MultipleAntColonySystem:
                     # 搜索到更好的结果，更新start_time
                     start_time_found_improved_solution = time.time()
 
-                    print('*' * 50)
-                    print('[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
-                    print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
-                    print('*' * 50)
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+                    self.print_and_write_in_file(file_to_write, '[macs]: distance of found path (%f) better than best path\'s (%f)' % (found_path_distance, self.best_path_distance))
+                    self.print_and_write_in_file(file_to_write, 'it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+                    file_to_write.flush()
+
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
@@ -427,11 +437,13 @@ class MultipleAntColonySystem:
 
                     # 搜索到更好的结果，更新start_time
                     start_time_found_improved_solution = time.time()
-                    print('*' * 50)
-                    print('[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+                    self.print_and_write_in_file(file_to_write, '[macs]: vehicle num of found path (%d) better than best path\'s (%d), found path distance is %f'
                           % (found_path_used_vehicle_num, best_vehicle_num, found_path_distance))
-                    print('it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
-                    print('*' * 50)
+                    self.print_and_write_in_file(file_to_write, 'it takes %0.3f second multiple_ant_colony_system running' % (time.time() - start_time_total))
+                    self.print_and_write_in_file(file_to_write, '*' * 50)
+                    file_to_write.flush()
+
                     self.best_path = found_path
                     self.best_vehicle_num = found_path_used_vehicle_num
                     self.best_path_distance = found_path_distance
@@ -443,3 +455,11 @@ class MultipleAntColonySystem:
                     print('[macs]: send stop info to acs_time and acs_vehicle')
                     # 通知acs_vehicle和acs_time两个线程，当前找到的best_path和best_path_distance
                     stop_event.set()
+
+    @staticmethod
+    def print_and_write_in_file(file_to_write=None, message='default message'):
+        if file_to_write is None:
+            print(message)
+        else:
+            print(message)
+            file_to_write.write(str(message)+'\n')
