@@ -123,6 +123,7 @@ class MultipleAntColonySystem:
 
         # 如果走完所有的点了，需要回到depot
         if ant.index_to_visit_empty():
+            ant.graph.local_update_pheromone(ant.current_index, 0)
             ant.move_to_next_index(0)
 
         # 对未访问的点进行插入，保证path是可行的
@@ -371,11 +372,15 @@ class MultipleAntColonySystem:
             while acs_vehicle_thread.is_alive() and acs_time_thread.is_alive():
 
                 # 如果在指定时间内没有搜索到更好的结果，则退出程序
-                if time.time() - start_time_found_improved_solution > 60 * 5:
+                given_time = 5
+                if time.time() - start_time_found_improved_solution > 60 * given_time:
                     stop_event.set()
                     print('*' * 50)
-                    print('time is up: cannot find a better solution in given time')
+                    print('time is up: cannot find a better solution in given time(%d minutes)' % given_time)
                     print('it takes %0.3f second from multiple_ant_colony_system running' % (time.time()-start_time_total))
+                    print('the best path have found is:')
+                    print(self.best_path)
+                    print('best path distance is %f, best vehicle_num is %d' % (self.best_path_distance, self.best_vehicle_num))
                     print('*' * 50)
                     return
 
