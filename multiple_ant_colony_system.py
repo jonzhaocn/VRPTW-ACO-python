@@ -203,7 +203,7 @@ class MultipleAntColonySystem:
 
             # 向macs发送计算得到的当前的最佳路径
             if ant_best_travel_distance is not None and ant_best_travel_distance < global_best_distance:
-                print('[acs_time]: local search for global_path found a improved feasible path, send path info to macs')
+                print('[acs_time]: ants\' local search found a improved feasible path, send path info to macs')
                 path_found_queue.put(PathMessage(ant_best_path, ant_best_travel_distance))
 
             ants_thread.clear()
