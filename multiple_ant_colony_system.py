@@ -233,7 +233,7 @@ class MultipleAntColonySystem:
         global_best_distance = None
 
         # 使用nearest_neighbor_heuristic算法初始化path 和distance
-        current_path, current_path_distance, _ = new_graph.nearest_neighbor_heuristic()
+        current_path, current_path_distance, _ = new_graph.nearest_neighbor_heuristic(max_vehicle_num=vehicle_num)
 
         # 找出当前path中未访问的结点
         current_index_to_visit = list(range(new_graph.node_num))
@@ -373,7 +373,7 @@ class MultipleAntColonySystem:
             while acs_vehicle_thread.is_alive() and acs_time_thread.is_alive():
 
                 # 如果在指定时间内没有搜索到更好的结果，则退出程序
-                given_time = 5
+                given_time = 10
                 if time.time() - start_time_found_improved_solution > 60 * given_time:
                     stop_event.set()
                     self.print_and_write_in_file(file_to_write, '*' * 50)

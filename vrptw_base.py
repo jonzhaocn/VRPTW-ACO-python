@@ -96,14 +96,18 @@ class VrptwGraph:
             self.pheromone_mat[current_ind][next_ind] += self.rho/best_path_distance
             current_ind = next_ind
 
-    def nearest_neighbor_heuristic(self):
+    def nearest_neighbor_heuristic(self, max_vehicle_num=None):
         index_to_visit = list(range(1, self.node_num))
         current_index = 0
         current_load = 0
         current_time = 0
         travel_distance = 0
         travel_path = [0]
-        while len(index_to_visit) > 0:
+
+        if max_vehicle_num is None:
+            max_vehicle_num = self.node_num
+
+        while len(index_to_visit) > 0 and max_vehicle_num > 0:
             nearest_next_index = self._cal_nearest_next_index(index_to_visit, current_index, current_load, current_time)
 
             if nearest_next_index is None:
@@ -113,6 +117,8 @@ class VrptwGraph:
                 current_time = 0
                 travel_path.append(0)
                 current_index = 0
+
+                max_vehicle_num -= 1
             else:
                 current_load += self.nodes[nearest_next_index].demand
 
